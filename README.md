@@ -1,0 +1,127 @@
+# Bsale Sync Pro
+
+Plugin WordPress/WooCommerce que conecta tu tienda con **Bsale**, el ERP chileno. Emite boletas y facturas automáticamente, mantiene el stock sincronizado en tiempo real y bloquea ventas sin stock antes de que ocurran.
+
+---
+
+## ¿Qué hace?
+
+| Módulo | Descripción |
+|---|---|
+| 🧾 **Emisión de documentos** | Genera boleta o factura en Bsale cuando un pedido pasa a "Procesando" |
+| 📦 **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante |
+| 🔍 **Verificación en tiempo real** | Consulta el stock real en Bsale al agregar al carrito y antes del checkout |
+| 🔗 **Mapeo de productos** | Vincula cada producto/variación WooCommerce con su `variantId` en Bsale |
+
+---
+
+## Requisitos
+
+- WordPress 6.0+
+- WooCommerce 7.0+
+- PHP 8.0+
+- Cuenta Bsale con access token
+
+---
+
+## Instalación
+
+1. Descarga o clona este repositorio en `wp-content/plugins/bsale-sync-pro`
+2. Activa el plugin desde **Plugins → Plugins instalados**
+3. Ve a **WooCommerce → Bsale Sync Pro** y configura tu token de API
+
+---
+
+## Configuración
+
+El panel tiene 4 pestañas:
+
+### Conexión
+Ingresa tu **Access Token** de Bsale (`Configuración → API → Access Token`) y verifica la conexión.
+
+### Documentos
+Asocia los tipos de documento de Bsale, la lista de precio y la bodega activa. Los selects se cargan dinámicamente desde tu cuenta Bsale.
+
+### Mapeo de campos
+Indica qué campos del pedido WooCommerce contienen el RUT, el tipo de documento (boleta/factura) y el giro comercial.
+
+```
+Campo tipo documento  →  ej. billing_document_type
+Valor boleta          →  ej. boleta
+Valor factura         →  ej. factura
+Campo RUT (boleta)    →  ej. billing_rut
+Campo RUT (factura)   →  ej. billing_company_rut
+```
+
+### Webhook
+Copia la URL generada y regístrala en **Bsale → Configuración → Webhooks → Stock**. El plugin usa una clave secreta para validar cada notificación.
+
+---
+
+## Mapeo de productos
+
+En cada producto o variación de WooCommerce aparece el campo **Bsale Variant ID**:
+
+- Producto simple → tab **General**, junto al SKU
+- Variación → dentro de cada variación en el tab **Variaciones**
+
+Sin este ID el producto no se sincroniza ni se verifica (las ventas igual pasan — el plugin es *fail-open*).
+
+---
+
+## Columnas en listado de pedidos
+
+El plugin agrega dos columnas al listado `/wp-admin/admin.php?page=wc-orders`:
+
+- **Bsale** — ícono PDF con link al documento emitido, o indicador de estado/error
+- **Envío** — badge clickeable que cicla entre `Por enviar → Enviado → Entregado`
+
+---
+
+## Metas guardadas por pedido
+
+| Meta key | Contenido |
+|---|---|
+| `_bsale_document_id` | ID del documento en Bsale |
+| `_bsale_document_url` | URL del PDF |
+| `_bsale_document_type` | `boleta` o `factura` |
+| `_bsale_document_error` | Mensaje de error (si falló) |
+| `_bsale_emission_date` | Timestamp de emisión |
+| `_shipping_status` | `pending` / `shipped` / `delivered` |
+
+---
+
+## Estructura del plugin
+
+```
+bsale-sync-pro/
+├── bsale-sync-pro.php              # Bootstrap
+├── uninstall.php                   # Limpieza al desinstalar
+├── includes/
+│   ├── class-bsale-api.php         # Cliente HTTP → api.bsale.io
+│   ├── class-bsale-settings.php    # Panel de configuración (4 tabs)
+│   ├── class-bsale-documents.php   # Emisión de documentos
+│   ├── class-bsale-stock-sync.php  # Webhook REST + procesamiento async
+│   ├── class-bsale-stock-check.php # Verificación al carrito y checkout
+│   ├── class-bsale-product-meta.php# Campo Variant ID en productos
+│   └── class-bsale-order-columns.php # Columnas en listado de pedidos
+└── assets/
+    ├── js/bsale-admin.js
+    └── css/bsale-admin.css
+```
+
+---
+
+## Notas técnicas
+
+- **Anti-duplicado**: `salesId = order_id` en cada documento previene emisiones dobles aunque el webhook se dispare dos veces
+- **HPOS compatible**: funciona tanto con el almacenamiento clásico (post meta) como con el nuevo HPOS de WooCommerce 7.1+
+- **Fail-open**: si la API de Bsale no responde o un producto no está mapeado, las ventas continúan sin interrupciones
+- **Stock en caché**: las consultas de stock se cachean 60 segundos para no saturar la API
+- **Log de eventos**: los últimos 100 eventos son visibles en la pestaña Webhook del panel
+
+---
+
+## Versión
+
+`1.6.1` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
