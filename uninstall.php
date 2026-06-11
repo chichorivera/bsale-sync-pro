@@ -52,7 +52,8 @@ if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $hpos_table ) ) === 
     }
 }
 
-// ---- Meta de productos (opcional) ------------------------------------------
-// Descomenta si también quieres eliminar los Bsale Variant IDs de los productos.
-//
-// $wpdb->delete( $wpdb->postmeta, [ 'meta_key' => '_bsale_variant_id' ], [ '%s' ] );
+// ---- Transients adicionales (SKU → variantId, caché de variantes) ----------
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_bsale_vid_%'" );
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_bsale_vid_%'" );
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_bsale_variant_%'" );
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_bsale_variant_%'" );

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  Bsale Sync Pro
  * Description:  Integración Bsale ↔ WooCommerce: emisión de documentos, sincronización de stock y verificación en tiempo real.
- * Version:      1.6.1
+ * Version:      1.7.0
  * Author:       JJRC
  * Text Domain:  bsale-sync-pro
  * Requires PHP: 8.0
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'BSALE_SYNC_VERSION', '1.6.1' );
+define( 'BSALE_SYNC_VERSION', '1.7.0' );
 define( 'BSALE_SYNC_FILE',    __FILE__ );
 define( 'BSALE_SYNC_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'BSALE_SYNC_URL',     plugin_dir_url( __FILE__ ) );
@@ -47,14 +47,12 @@ function bsale_sync_init(): void {
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-api.php';
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-settings.php';
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-documents.php';
-    require_once BSALE_SYNC_DIR . 'includes/class-bsale-product-meta.php';
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-stock-sync.php';
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-stock-check.php';
     require_once BSALE_SYNC_DIR . 'includes/class-bsale-order-columns.php';
 
     new Bsale_Settings();
     new Bsale_Documents();
-    new Bsale_Product_Meta();
     new Bsale_Stock_Sync();
     new Bsale_Stock_Check();
     new Bsale_Order_Columns();

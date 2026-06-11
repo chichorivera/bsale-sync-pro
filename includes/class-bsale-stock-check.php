@@ -3,10 +3,12 @@
  * Bsale_Stock_Check
  * Verifica el stock real en Bsale antes de agregar al carrito y antes del checkout.
  *
- * Si el producto no tiene _bsale_variant_id mapeado, o si la API falla, se permite
- * la operación (fail-open) para no bloquear ventas por problemas de integración.
+ * El match se hace por SKU: si el producto WooCommerce tiene SKU y existe una variante
+ * con ese código en Bsale, se consulta el stock real. Si no tiene SKU o no existe en
+ * Bsale, la operación se permite (fail-open).
  *
- * Cache: transient bsale_stock_{variantId}_{officeId} con TTL de 60 segundos.
+ * Cache SKU → variantId : 1 hora  (bsale_vid_{md5(sku)})
+ * Cache stock real       : 60 seg  (bsale_stock_{variantId}_{officeId})
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -22,42 +24,38 @@ class Bsale_Stock_Check {
     // Verificación al agregar al carrito
     // -------------------------------------------------------------------------
 
-    /**
-     * @param bool $passed
-     * @param int  $product_id   ID del producto padre
-     * @param int  $quantity
-     * @param int  $variation_id ID de variación (0 si es producto simple)
-     */
     public function validate_add_to_cart( bool $passed, int $product_id, int $quantity, int $variation_id = 0 ): bool {
-        if ( ! $passed ) return false; // ya falló por otra validación
+        if ( ! $passed ) return false;
 
         $settings = get_option( BSALE_SYNC_OPTION, [] );
 
-        // Sin token o sin bodega configurada: no bloquear
         if ( empty( $settings['access_token'] ) || empty( $settings['office_id'] ) ) {
             return $passed;
         }
 
-        // Para variaciones, buscar el meta en la variación; si no, en el producto padre
         $lookup_id  = $variation_id > 0 ? $variation_id : $product_id;
         $product    = wc_get_product( $lookup_id );
 
         if ( ! $product ) return $passed;
 
-        $variant_id = (int) $product->get_meta( '_bsale_variant_id' );
-        if ( ! $variant_id ) return $passed; // no mapeado: permitir
+        $sku = $product->get_sku();
+        if ( ! $sku ) return $passed; // sin SKU: no verificar
 
-        $office_id = (int) $settings['office_id'];
+        $office_id  = (int) $settings['office_id'];
+        $variant_id = $this->get_variant_id_by_sku( $sku );
+
+        if ( ! $variant_id || is_wp_error( $variant_id ) ) return $passed;
+
         $available = $this->get_stock_cached( $variant_id, $office_id );
 
-        if ( is_wp_error( $available ) ) return $passed; // error de API: no bloquear
+        if ( is_wp_error( $available ) ) return $passed;
 
         if ( $available < $quantity ) {
             wc_add_notice( $this->stock_error_message( $product, $quantity, $available ), 'error' );
 
             Bsale_Stock_Sync::add_log( sprintf(
-                'STOCK_CHECK_FAIL  variant_id=%d  requested=%d  available=%d  product="%s"',
-                $variant_id,
+                'STOCK_CHECK_FAIL  sku=%s  requested=%d  available=%d  product="%s"',
+                $sku,
                 $quantity,
                 $available,
                 $product->get_name()
@@ -82,11 +80,15 @@ class Bsale_Stock_Check {
 
         foreach ( WC()->cart->get_cart() as $cart_item ) {
             /** @var WC_Product $product */
-            $product    = $cart_item['data'];
-            $quantity   = (int) $cart_item['quantity'];
-            $variant_id = (int) $product->get_meta( '_bsale_variant_id' );
+            $product  = $cart_item['data'];
+            $quantity = (int) $cart_item['quantity'];
+            $sku      = $product->get_sku();
 
-            if ( ! $variant_id ) continue;
+            if ( ! $sku ) continue;
+
+            $variant_id = $this->get_variant_id_by_sku( $sku );
+
+            if ( ! $variant_id || is_wp_error( $variant_id ) ) continue;
 
             $available = $this->get_stock_cached( $variant_id, $office_id );
 
@@ -96,8 +98,8 @@ class Bsale_Stock_Check {
                 wc_add_notice( $this->stock_error_message( $product, $quantity, $available ), 'error' );
 
                 Bsale_Stock_Sync::add_log( sprintf(
-                    'STOCK_CHECK_FAIL  variant_id=%d  requested=%d  available=%d  product="%s"',
-                    $variant_id,
+                    'STOCK_CHECK_FAIL  sku=%s  requested=%d  available=%d  product="%s"',
+                    $sku,
                     $quantity,
                     $available,
                     $product->get_name()
@@ -107,7 +109,30 @@ class Bsale_Stock_Check {
     }
 
     // -------------------------------------------------------------------------
-    // Stock con caché de 60 segundos
+    // SKU → variantId (caché 1 hora)
+    // -------------------------------------------------------------------------
+
+    private function get_variant_id_by_sku( string $sku ): int|WP_Error {
+        $cache_key = 'bsale_vid_' . md5( $sku );
+        $cached    = get_transient( $cache_key );
+
+        if ( false !== $cached ) {
+            return (int) $cached; // 0 = no existe en Bsale
+        }
+
+        $api     = new Bsale_API();
+        $variant = $api->get_variant_by_sku( $sku );
+
+        if ( is_wp_error( $variant ) ) return $variant;
+
+        $id = $variant ? (int) ( $variant['id'] ?? 0 ) : 0;
+        set_transient( $cache_key, $id, HOUR_IN_SECONDS );
+
+        return $id;
+    }
+
+    // -------------------------------------------------------------------------
+    // Stock real con caché de 60 segundos
     // -------------------------------------------------------------------------
 
     private function get_stock_cached( int $variant_id, int $office_id ): int|WP_Error {
@@ -125,7 +150,6 @@ class Bsale_Stock_Check {
             return $result;
         }
 
-        // Sumar quantityAvailable de todos los ítems retornados
         $available = 0;
         foreach ( (array) ( $result['items'] ?? [] ) as $item ) {
             $available += (int) ( $item['quantityAvailable'] ?? 0 );
@@ -144,7 +168,6 @@ class Bsale_Stock_Check {
         return (string) apply_filters(
             'bsale_stock_error_message',
             sprintf(
-                /* translators: 1: product name, 2: available quantity */
                 __( 'El producto "%1$s" no tiene stock suficiente en este momento. Disponible: %2$d.', 'bsale-sync-pro' ),
                 $product->get_name(),
                 $available

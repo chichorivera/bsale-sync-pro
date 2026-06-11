@@ -92,12 +92,32 @@ class Bsale_Stock_Sync {
             return;
         }
 
-        // Buscar producto WC por _bsale_variant_id
-        $product = $this->find_product_by_variant_id( $variant_id );
+        // Obtener el SKU de la variante en Bsale para encontrar el producto en WooCommerce
+        $variant_data = $api->get_variant( $variant_id );
+
+        if ( is_wp_error( $variant_data ) ) {
+            $this->add_log( "STOCK_FETCH_ERROR  variant_id={$variant_id}  error=" . $variant_data->get_error_message() );
+            return;
+        }
+
+        $sku = $variant_data['code'] ?? '';
+
+        if ( ! $sku ) {
+            $this->add_log( "STOCK_NOT_MAPPED  variant_id={$variant_id}  no SKU en Bsale" );
+            return;
+        }
+
+        $product_id = wc_get_product_id_by_sku( $sku );
+
+        if ( ! $product_id ) {
+            $this->add_log( "STOCK_NOT_MAPPED  variant_id={$variant_id}  sku={$sku}  sin producto en WooCommerce" );
+            return;
+        }
+
+        $product = wc_get_product( $product_id );
 
         if ( ! $product ) {
-            $this->add_log( "STOCK_NOT_MAPPED  variant_id={$variant_id}  qty={$qty}" );
-            error_log( "[Bsale] variantId {$variant_id} no mapeado en WooCommerce." );
+            $this->add_log( "STOCK_NOT_MAPPED  sku={$sku}  producto no encontrado" );
             return;
         }
 
@@ -105,32 +125,12 @@ class Bsale_Stock_Sync {
         wc_update_product_stock( $product, $qty );
 
         $this->add_log( sprintf(
-            'STOCK_UPDATED  variant_id=%d  wc_product=%d  stock=%d→%d',
-            $variant_id,
+            'STOCK_UPDATED  sku=%s  wc_product=%d  stock=%d→%d',
+            $sku,
             $product->get_id(),
             $prev_qty,
             $qty
         ) );
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private function find_product_by_variant_id( int $variant_id ): WC_Product|null {
-        global $wpdb;
-
-        $post_id = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT post_id FROM {$wpdb->postmeta}
-             WHERE meta_key = '_bsale_variant_id' AND meta_value = %d
-             LIMIT 1",
-            $variant_id
-        ) );
-
-        if ( ! $post_id ) return null;
-
-        $product = wc_get_product( $post_id );
-        return $product ?: null;
     }
 
     // -------------------------------------------------------------------------

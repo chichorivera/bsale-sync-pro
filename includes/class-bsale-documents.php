@@ -223,15 +223,19 @@ class Bsale_Documents {
             $detail = [
                 'netUnitValue' => $net_unit_value,
                 'quantity'     => $qty,
-                'discount'     => 0, // baked into netUnitValue via get_total()
+                'discount'     => 0,
                 'comment'      => $item->get_name(),
             ];
 
-            // Agregar variantId solo si el producto está mapeado
-            $product    = $item->get_product();
-            $variant_id = $product ? (int) $product->get_meta( '_bsale_variant_id' ) : 0;
-            if ( $variant_id > 0 ) {
-                $detail['variantId'] = $variant_id;
+            // Agregar variantId si el producto tiene SKU y existe en Bsale
+            $product = $item->get_product();
+            $sku     = $product ? $product->get_sku() : '';
+
+            if ( $sku ) {
+                $variant = $this->api->get_variant_by_sku( $sku );
+                if ( ! is_wp_error( $variant ) && $variant && ! empty( $variant['id'] ) ) {
+                    $detail['variantId'] = (int) $variant['id'];
+                }
             }
 
             $details[] = $detail;

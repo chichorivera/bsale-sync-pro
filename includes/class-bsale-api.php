@@ -94,6 +94,28 @@ class Bsale_API {
         ] );
     }
 
+    /**
+     * Busca una variante en Bsale por su código (= SKU de WooCommerce).
+     * Resultado cacheado 1 hora. Retorna null si no existe en Bsale.
+     */
+    public function get_variant_by_sku( string $sku ): array|null|WP_Error {
+        $result = $this->cached(
+            'variant_sku_' . md5( $sku ),
+            fn() => $this->get( 'variants.json', [ 'code' => $sku ] )
+        );
+
+        if ( is_wp_error( $result ) ) return $result;
+
+        return ! empty( $result['items'] ) ? $result['items'][0] : null;
+    }
+
+    /**
+     * Obtiene los datos de una variante por su ID en Bsale (para obtener su SKU/code).
+     */
+    public function get_variant( int $variant_id ): array|WP_Error {
+        return $this->get( "variants/{$variant_id}.json" );
+    }
+
     // -------------------------------------------------------------------------
     // Helpers privados
     // -------------------------------------------------------------------------
