@@ -1,0 +1,15 @@
+# WordPress
+*.log
+.DS_Store
+
+# Node (por si se agrega build process)
+node_modules/
+npm-debug.log
+
+# Composer
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp

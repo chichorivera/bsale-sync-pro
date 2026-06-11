@@ -1,0 +1,221 @@
+/* Bsale Sync Pro — Admin Styles v1.5.0 */
+
+.bsale-wrap h1 {
+    margin-bottom: 16px;
+}
+
+/* ---- Tabs ---- */
+.bsale-tabs {
+    margin-bottom: 0;
+}
+
+.bsale-tab-content {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-top: none;
+    padding: 20px 24px 8px;
+}
+
+/* ---- Formulario ---- */
+.bsale-form-table th {
+    width: 240px;
+    padding: 14px 10px 14px 0;
+    vertical-align: top;
+}
+
+.bsale-form-table td {
+    padding: 12px 10px;
+}
+
+.bsale-tab-description {
+    color: #646970;
+    margin: 12px 0 20px;
+}
+
+.bsale-section-heading {
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 6px;
+    margin: 24px 0 4px;
+}
+
+/* ---- Token row ---- */
+.bsale-token-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.bsale-token-row input.regular-text {
+    flex: 1;
+    min-width: 260px;
+    max-width: 400px;
+}
+
+/* ---- Resultado verificación ---- */
+.bsale-verify-result {
+    display: block;
+    margin-top: 6px;
+    font-weight: 500;
+    font-size: 13px;
+    min-height: 18px;
+}
+
+.bsale-verify-result[data-status="success"] { color: #1c9e58; }
+.bsale-verify-result[data-status="error"]   { color: #cc1818; }
+
+/* ---- Select dinámico ---- */
+.bsale-dynamic-select {
+    min-width: 280px;
+}
+
+.bsale-dynamic-select:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+/* ---- Columnas listado de pedidos ---- */
+
+.column-shipping_status,
+.column-bsale_document {
+    width: 90px !important;
+}
+
+/* Columna estado de envío */
+.bsale-shipping-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity .15s;
+    white-space: nowrap;
+}
+
+.bsale-shipping-badge:hover     { opacity: .75; }
+.bsale-shipping-badge.bsale-updating { opacity: .4; cursor: wait; }
+
+.bsale-shipping-pending   { background: #f0f0f1; color: #50575e; }
+.bsale-shipping-shipped   { background: #d8eaf8; color: #135e96; }
+.bsale-shipping-delivered { background: #d8f5e6; color: #1c6b3a; }
+
+/* Columna Bsale */
+.bsale-col-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #1c9e58;
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.bsale-col-pdf:hover        { color: #145c35; }
+.bsale-col-pdf .dashicons   { font-size: 16px; width: 16px; height: 16px; }
+
+.bsale-col-emitted          { color: #1c9e58; }
+.bsale-col-error            { color: #cc1818; cursor: help; }
+.bsale-col-pending          { color: #b0b0b0; }
+
+/* ---- Panel Bsale en pedido ---- */
+.bsale-order-panel {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 14px;
+    margin-top: 14px;
+}
+
+.bsale-order-panel h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 10px;
+}
+
+.bsale-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    margin: 0 0 8px;
+}
+
+.bsale-status--ok     { color: #1c9e58; }
+.bsale-status--error  { color: #cc1818; }
+.bsale-status--pending { color: #7c7c7c; }
+
+.bsale-order-meta {
+    margin: 0 0 10px;
+    padding-left: 0;
+    list-style: none;
+    font-size: 12px;
+}
+
+.bsale-order-meta li {
+    margin-bottom: 3px;
+}
+
+.bsale-error-msg {
+    font-size: 12px;
+    color: #cc1818;
+    background: #fff0f0;
+    border: 1px solid #f5a0a0;
+    border-radius: 3px;
+    padding: 6px 10px;
+    margin: 0 0 10px;
+    word-break: break-word;
+}
+
+.bsale-retry-result {
+    display: block;
+    font-size: 12px;
+    margin-top: 6px;
+    min-height: 16px;
+}
+
+/* ---- Tab Webhook ---- */
+.bsale-webhook-url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bsale-webhook-url-row input.large-text {
+    flex: 1;
+    max-width: 520px;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.bsale-section-heading .button {
+    font-size: 11px;
+    margin-left: 12px;
+    vertical-align: middle;
+}
+
+.bsale-clear-log-btn {
+    float: none;
+}
+
+.bsale-log-textarea {
+    width: 100%;
+    height: 220px;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    padding: 10px;
+    resize: vertical;
+}
+
+/* ---- Checkbox ---- */
+.bsale-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
