@@ -62,15 +62,15 @@ class Bsale_API {
     // -------------------------------------------------------------------------
 
     public function get_document_types(): array|WP_Error {
-        return $this->cached( 'document_types', fn() => $this->get( 'document_types.json' ) );
+        return $this->cached( 'document_types', fn() => $this->get( 'document_types.json', [ 'state' => 1 ] ) );
     }
 
     public function get_price_lists(): array|WP_Error {
-        return $this->cached( 'price_lists', fn() => $this->get( 'price_lists.json' ) );
+        return $this->cached( 'price_lists', fn() => $this->get( 'price_lists.json', [ 'state' => 1 ] ) );
     }
 
     public function get_offices(): array|WP_Error {
-        return $this->cached( 'offices', fn() => $this->get( 'offices.json' ) );
+        return $this->cached( 'offices', fn() => $this->get( 'offices.json', [ 'state' => 1 ] ) );
     }
 
     public function get_client_by_rut( string $rut ): array|null|WP_Error {
