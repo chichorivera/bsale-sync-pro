@@ -116,10 +116,12 @@ bsale-sync-pro/
 ## Notas técnicas
 
 - **Match por SKU**: el campo `code` de cada variante en Bsale debe coincidir exactamente con el SKU del producto en WooCommerce
+- **Sin llamadas extra**: el stock se consulta directo con `GET /stocks.json?code={sku}&officeid={id}` y los detalles del documento usan `code` (SKU) en vez de `variantId` — sin pasos intermedios
+- **Solo registros activos**: los selects de configuración filtran con `state=0` (activo en la convención de Bsale)
 - **Anti-duplicado**: `salesId = order_id` en cada documento previene emisiones dobles
 - **HPOS compatible**: funciona con almacenamiento clásico y con el nuevo HPOS de WooCommerce 7.1+
-- **Fail-open**: si la API no responde, el producto no tiene SKU, o no existe en Bsale, las ventas continúan sin interrupciones
-- **Caché**: SKU → variantId cacheado 1 hora; stock real cacheado 60 segundos
+- **Fail-open**: si la API no responde o el producto no tiene SKU, las ventas continúan sin interrupciones
+- **Caché**: stock real cacheado 60 segundos por SKU+bodega
 - **Log de eventos**: últimos 100 eventos visibles en la pestaña Webhook del panel
 
 ---
