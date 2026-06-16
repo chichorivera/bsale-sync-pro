@@ -3,12 +3,13 @@
  * Bsale_Stock_Check
  * Verifica el stock real en Bsale antes de agregar al carrito y antes del checkout.
  *
- * El match se hace por SKU: si el producto WooCommerce tiene SKU y existe una variante
- * con ese código en Bsale, se consulta el stock real. Si no tiene SKU o no existe en
- * Bsale, la operación se permite (fail-open).
+ * El match se hace por SKU usando GET /stocks.json?code={sku}&officeid={id},
+ * que es el endpoint oficial de Bsale para consultar stock directamente por SKU.
+ * No se necesita resolver el variantId primero.
  *
- * Cache SKU → variantId : 1 hora  (bsale_vid_{md5(sku)})
- * Cache stock real       : 60 seg  (bsale_stock_{variantId}_{officeId})
+ * Si el producto no tiene SKU o la API falla, la operación se permite (fail-open).
+ *
+ * Cache: bsale_stock_sku_{md5(sku)}_{officeId} — 60 segundos
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -33,20 +34,16 @@ class Bsale_Stock_Check {
             return $passed;
         }
 
-        $lookup_id  = $variation_id > 0 ? $variation_id : $product_id;
-        $product    = wc_get_product( $lookup_id );
+        $lookup_id = $variation_id > 0 ? $variation_id : $product_id;
+        $product   = wc_get_product( $lookup_id );
 
         if ( ! $product ) return $passed;
 
         $sku = $product->get_sku();
-        if ( ! $sku ) return $passed; // sin SKU: no verificar
+        if ( ! $sku ) return $passed;
 
-        $office_id  = (int) $settings['office_id'];
-        $variant_id = $this->get_variant_id_by_sku( $sku );
-
-        if ( ! $variant_id || is_wp_error( $variant_id ) ) return $passed;
-
-        $available = $this->get_stock_cached( $variant_id, $office_id );
+        $office_id = (int) $settings['office_id'];
+        $available = $this->get_stock_cached( $sku, $office_id );
 
         if ( is_wp_error( $available ) ) return $passed;
 
@@ -86,11 +83,7 @@ class Bsale_Stock_Check {
 
             if ( ! $sku ) continue;
 
-            $variant_id = $this->get_variant_id_by_sku( $sku );
-
-            if ( ! $variant_id || is_wp_error( $variant_id ) ) continue;
-
-            $available = $this->get_stock_cached( $variant_id, $office_id );
+            $available = $this->get_stock_cached( $sku, $office_id );
 
             if ( is_wp_error( $available ) ) continue;
 
@@ -109,34 +102,11 @@ class Bsale_Stock_Check {
     }
 
     // -------------------------------------------------------------------------
-    // SKU → variantId (caché 1 hora)
+    // Stock por SKU con caché de 60 segundos
     // -------------------------------------------------------------------------
 
-    private function get_variant_id_by_sku( string $sku ): int|WP_Error {
-        $cache_key = 'bsale_vid_' . md5( $sku );
-        $cached    = get_transient( $cache_key );
-
-        if ( false !== $cached ) {
-            return (int) $cached; // 0 = no existe en Bsale
-        }
-
-        $api     = new Bsale_API();
-        $variant = $api->get_variant_by_sku( $sku );
-
-        if ( is_wp_error( $variant ) ) return $variant;
-
-        $id = $variant ? (int) ( $variant['id'] ?? 0 ) : 0;
-        set_transient( $cache_key, $id, HOUR_IN_SECONDS );
-
-        return $id;
-    }
-
-    // -------------------------------------------------------------------------
-    // Stock real con caché de 60 segundos
-    // -------------------------------------------------------------------------
-
-    private function get_stock_cached( int $variant_id, int $office_id ): int|WP_Error {
-        $cache_key = "bsale_stock_{$variant_id}_{$office_id}";
+    private function get_stock_cached( string $sku, int $office_id ): int|WP_Error {
+        $cache_key = 'bsale_stock_sku_' . md5( $sku ) . '_' . $office_id;
         $cached    = get_transient( $cache_key );
 
         if ( false !== $cached ) {
@@ -144,7 +114,10 @@ class Bsale_Stock_Check {
         }
 
         $api    = new Bsale_API();
-        $result = $api->get_stock( $variant_id, $office_id );
+        $result = $api->get( 'stocks.json', [
+            'code'     => $sku,
+            'officeid' => $office_id,
+        ] );
 
         if ( is_wp_error( $result ) ) {
             return $result;

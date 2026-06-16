@@ -227,15 +227,12 @@ class Bsale_Documents {
                 'comment'      => $item->get_name(),
             ];
 
-            // Agregar variantId si el producto tiene SKU y existe en Bsale
+            // Usar SKU directamente como `code` en el detalle (Bsale lo acepta como alternativa a variantId)
             $product = $item->get_product();
             $sku     = $product ? $product->get_sku() : '';
 
             if ( $sku ) {
-                $variant = $this->api->get_variant_by_sku( $sku );
-                if ( ! is_wp_error( $variant ) && $variant && ! empty( $variant['id'] ) ) {
-                    $detail['variantId'] = (int) $variant['id'];
-                }
+                $detail['code'] = $sku;
             }
 
             $details[] = $detail;
