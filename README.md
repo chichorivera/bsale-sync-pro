@@ -9,7 +9,8 @@ Plugin WordPress/WooCommerce que conecta tu tienda con **Bsale**, el ERP chileno
 | Módulo | Descripción |
 |---|---|
 | 🧾 **Emisión de documentos** | Genera boleta o factura en Bsale cuando un pedido pasa a "Procesando" |
-| 📦 **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante |
+| 📦 **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante. Activa la gestión de inventario automáticamente. |
+| 💲 **Sincronización de precios** | Recibe webhooks de Bsale y actualiza el precio regular del producto en WooCommerce cuando cambia en la lista de precios configurada |
 | 🔍 **Verificación en tiempo real** | Consulta el stock real en Bsale al agregar al carrito y antes del checkout |
 
 ---
@@ -116,6 +117,8 @@ bsale-sync-pro/
 ## Notas técnicas
 
 - **Match por SKU**: el campo `code` de cada variante en Bsale debe coincidir exactamente con el SKU del producto en WooCommerce
+- **Webhook unificado**: el mismo endpoint maneja los topics `stock` y `price` de Bsale. Solo se procesan precios si la lista coincide con la configurada en el panel
+- **Gestión de inventario automática**: al sincronizar stock, activa `manage_stock` en el producto WooCommerce si no estaba habilitado
 - **Sin llamadas extra**: el stock se consulta directo con `GET /stocks.json?code={sku}&officeid={id}` y los detalles del documento usan `code` (SKU) en vez de `variantId` — sin pasos intermedios
 - **Solo registros activos**: los selects de configuración filtran con `state=0` (activo en la convención de Bsale)
 - **Anti-duplicado**: `salesId = order_id` en cada documento previene emisiones dobles
@@ -128,4 +131,4 @@ bsale-sync-pro/
 
 ## Versión
 
-`1.7.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
+`1.8.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.

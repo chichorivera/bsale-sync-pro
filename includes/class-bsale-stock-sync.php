@@ -1,14 +1,18 @@
 <?php
 /**
  * Bsale_Stock_Sync
- * Endpoint REST que recibe webhooks de Bsale y actualiza stock en WooCommerce.
+ * Endpoint REST que recibe webhooks de Bsale y sincroniza stock y precios en WooCommerce.
  *
  * URL: POST {site}/wp-json/bsale/v1/stock?secret={webhook_secret}
  *
- * Flujo:
+ * Topics manejados:
+ *   - stock : resourceId = variantId, officeId = sucursal donde cambió el stock
+ *   - price : resourceId = variantId, priceListId = lista de precios modificada
+ *
+ * Flujo (ambos topics):
  *   1. Validar secret → responder 200 inmediatamente
  *   2. Programar wp_schedule_single_event (procesamiento async)
- *   3. Cron: GET /v1/stocks/{resourceId} → actualizar stock del producto WC mapeado
+ *   3. Cron: consulta Bsale → obtiene SKU → actualiza producto WC
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -16,8 +20,9 @@ defined( 'ABSPATH' ) || exit;
 class Bsale_Stock_Sync {
 
     public function __construct() {
-        add_action( 'rest_api_init',                   [ $this, 'register_routes' ] );
-        add_action( 'bsale_process_stock_webhook',     [ $this, 'process_webhook' ], 10, 1 );
+        add_action( 'rest_api_init',               [ $this, 'register_routes' ] );
+        add_action( 'bsale_process_stock_webhook', [ $this, 'process_stock_webhook' ], 10, 2 );
+        add_action( 'bsale_process_price_webhook', [ $this, 'process_price_webhook' ], 10, 2 );
     }
 
     // -------------------------------------------------------------------------
@@ -42,83 +47,96 @@ class Bsale_Stock_Sync {
     }
 
     public function handle_webhook( WP_REST_Request $request ): WP_REST_Response {
-        $body = $request->get_json_params() ?? [];
+        $body  = $request->get_json_params() ?? [];
+        $topic = $body['topic'] ?? '';
 
-        // Ignorar si no es un evento de stock
-        if ( ( $body['topic'] ?? '' ) !== 'stock' || empty( $body['resourceId'] ) ) {
+        if ( empty( $body['resourceId'] ) || ! in_array( $topic, [ 'stock', 'price' ], true ) ) {
             return new WP_REST_Response( [ 'status' => 'ignored' ], 200 );
         }
 
-        $resource_id = (int) $body['resourceId'];
-
-        // Registrar recepción
-        $this->add_log( sprintf(
-            'WEBHOOK_RECEIVED  resourceId=%d  action=%s',
-            $resource_id,
-            sanitize_text_field( $body['action'] ?? 'unknown' )
-        ) );
+        $resource_id = (int) $body['resourceId']; // variantId en Bsale
 
         update_option( 'bsale_last_webhook', time(), false );
 
-        // Procesar en background (WP-Cron)
-        wp_schedule_single_event( time(), 'bsale_process_stock_webhook', [ $resource_id ] );
+        switch ( $topic ) {
+            case 'stock':
+                $office_id = (int) ( $body['officeId'] ?? 0 );
+                $this->add_log( sprintf(
+                    'WEBHOOK_RECEIVED  topic=stock  variantId=%d  officeId=%d  action=%s',
+                    $resource_id,
+                    $office_id,
+                    sanitize_text_field( $body['action'] ?? 'unknown' )
+                ) );
+                wp_schedule_single_event( time(), 'bsale_process_stock_webhook', [ $resource_id, $office_id ] );
+                break;
+
+            case 'price':
+                $price_list_id = (int) ( $body['priceListId'] ?? 0 );
+                $this->add_log( sprintf(
+                    'WEBHOOK_RECEIVED  topic=price  variantId=%d  priceListId=%d',
+                    $resource_id,
+                    $price_list_id
+                ) );
+                wp_schedule_single_event( time(), 'bsale_process_price_webhook', [ $resource_id, $price_list_id ] );
+                break;
+        }
+
         spawn_cron();
 
         return new WP_REST_Response( [ 'status' => 'queued' ], 200 );
     }
 
     // -------------------------------------------------------------------------
-    // Procesamiento async (WP-Cron)
+    // Cron: sincronización de stock
     // -------------------------------------------------------------------------
 
-    public function process_webhook( int $resource_id ): void {
-        $api      = new Bsale_API();
-        $settings = get_option( BSALE_SYNC_OPTION, [] );
+    public function process_stock_webhook( int $variant_id, int $office_id = 0 ): void {
+        $api = new Bsale_API();
 
-        // GET /v1/stocks/{resourceId}.json
-        $stock_data = $api->get( "stocks/{$resource_id}.json" );
-
-        if ( is_wp_error( $stock_data ) ) {
-            $this->add_log( "STOCK_FETCH_ERROR  resourceId={$resource_id}  error=" . $stock_data->get_error_message() );
-            error_log( '[Bsale] Stock fetch error resourceId=' . $resource_id . ': ' . $stock_data->get_error_message() );
-            return;
-        }
-
-        $variant_id = (int) ( $stock_data['variant']['id'] ?? 0 );
-        $qty        = (int) ( $stock_data['quantityAvailable'] ?? 0 );
-
-        if ( ! $variant_id ) {
-            $this->add_log( "STOCK_PARSE_ERROR  resourceId={$resource_id}  no variantId in response" );
-            return;
-        }
-
-        // Obtener el SKU de la variante en Bsale para encontrar el producto en WooCommerce
+        // Obtener SKU de la variante en Bsale
         $variant_data = $api->get_variant( $variant_id );
-
         if ( is_wp_error( $variant_data ) ) {
-            $this->add_log( "STOCK_FETCH_ERROR  variant_id={$variant_id}  error=" . $variant_data->get_error_message() );
+            $this->add_log( "STOCK_FETCH_ERROR  variantId={$variant_id}  error=" . $variant_data->get_error_message() );
             return;
         }
 
         $sku = $variant_data['code'] ?? '';
-
         if ( ! $sku ) {
-            $this->add_log( "STOCK_NOT_MAPPED  variant_id={$variant_id}  no SKU en Bsale" );
+            $this->add_log( "STOCK_NOT_MAPPED  variantId={$variant_id}  sin SKU en Bsale" );
             return;
         }
 
-        $product_id = wc_get_product_id_by_sku( $sku );
+        // Consultar stock real (filtrado por bodega si viene en el webhook)
+        $params = [ 'variantid' => $variant_id ];
+        if ( $office_id ) {
+            $params['officeid'] = $office_id;
+        }
 
+        $stock_data = $api->get( 'stocks.json', $params );
+        if ( is_wp_error( $stock_data ) ) {
+            $this->add_log( "STOCK_FETCH_ERROR  sku={$sku}  error=" . $stock_data->get_error_message() );
+            return;
+        }
+
+        $qty = 0;
+        foreach ( (array) ( $stock_data['items'] ?? [] ) as $item ) {
+            $qty += (int) ( $item['quantityAvailable'] ?? 0 );
+        }
+
+        // Buscar producto WC por SKU
+        $product_id = wc_get_product_id_by_sku( $sku );
         if ( ! $product_id ) {
-            $this->add_log( "STOCK_NOT_MAPPED  variant_id={$variant_id}  sku={$sku}  sin producto en WooCommerce" );
+            $this->add_log( "STOCK_NOT_MAPPED  sku={$sku}  sin producto en WooCommerce" );
             return;
         }
 
         $product = wc_get_product( $product_id );
+        if ( ! $product ) return;
 
-        if ( ! $product ) {
-            $this->add_log( "STOCK_NOT_MAPPED  sku={$sku}  producto no encontrado" );
-            return;
+        // Activar gestión de inventario si no está habilitada
+        if ( ! $product->get_manage_stock() ) {
+            $product->set_manage_stock( true );
+            $product->save();
         }
 
         $prev_qty = (int) $product->get_stock_quantity();
@@ -127,9 +145,75 @@ class Bsale_Stock_Sync {
         $this->add_log( sprintf(
             'STOCK_UPDATED  sku=%s  wc_product=%d  stock=%d→%d',
             $sku,
-            $product->get_id(),
+            $product_id,
             $prev_qty,
             $qty
+        ) );
+    }
+
+    // -------------------------------------------------------------------------
+    // Cron: sincronización de precio
+    // -------------------------------------------------------------------------
+
+    public function process_price_webhook( int $variant_id, int $price_list_id ): void {
+        $api      = new Bsale_API();
+        $settings = get_option( BSALE_SYNC_OPTION, [] );
+
+        // Solo procesar si la lista coincide con la configurada (o si no hay lista configurada)
+        $configured = (int) ( $settings['price_list_id'] ?? 0 );
+        if ( $configured && $price_list_id !== $configured ) {
+            $this->add_log( "PRICE_SKIPPED  variantId={$variant_id}  priceListId={$price_list_id}  (lista no configurada)" );
+            return;
+        }
+
+        // Obtener SKU de la variante en Bsale
+        $variant_data = $api->get_variant( $variant_id );
+        if ( is_wp_error( $variant_data ) ) {
+            $this->add_log( "PRICE_FETCH_ERROR  variantId={$variant_id}  error=" . $variant_data->get_error_message() );
+            return;
+        }
+
+        $sku = $variant_data['code'] ?? '';
+        if ( ! $sku ) {
+            $this->add_log( "PRICE_NOT_MAPPED  variantId={$variant_id}  sin SKU en Bsale" );
+            return;
+        }
+
+        // Obtener precio desde la lista de precios
+        $detail = $api->get_price_list_detail( $price_list_id, $variant_id );
+        if ( is_wp_error( $detail ) || ! $detail ) {
+            $this->add_log( "PRICE_FETCH_ERROR  sku={$sku}  sin detalle en lista {$price_list_id}" );
+            return;
+        }
+
+        $price = (float) ( $detail['variantValueWithTaxes'] ?? 0 );
+        if ( $price <= 0 ) {
+            $this->add_log( "PRICE_INVALID  sku={$sku}  price={$price}" );
+            return;
+        }
+
+        // Buscar producto WC por SKU
+        $product_id = wc_get_product_id_by_sku( $sku );
+        if ( ! $product_id ) {
+            $this->add_log( "PRICE_NOT_MAPPED  sku={$sku}  sin producto en WooCommerce" );
+            return;
+        }
+
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) return;
+
+        $prev_price = $product->get_regular_price();
+        $product->set_regular_price( (string) $price );
+        $product->save();
+
+        wc_delete_product_transients( $product_id );
+
+        $this->add_log( sprintf(
+            'PRICE_UPDATED  sku=%s  wc_product=%d  price=%s→%s',
+            $sku,
+            $product_id,
+            $prev_price,
+            $price
         ) );
     }
 

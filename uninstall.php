@@ -27,6 +27,7 @@ $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_t
 // ---- Cron ------------------------------------------------------------------
 
 wp_clear_scheduled_hook( 'bsale_process_stock_webhook' );
+wp_clear_scheduled_hook( 'bsale_process_price_webhook' );
 
 // ---- Meta de pedidos (legacy postmeta + HPOS) ------------------------------
 

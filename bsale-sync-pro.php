@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  Bsale Sync Pro
  * Description:  Integración Bsale ↔ WooCommerce: emisión de documentos, sincronización de stock y verificación en tiempo real.
- * Version:      1.7.0
+ * Version:      1.8.0
  * Author:       JJRC
  * Text Domain:  bsale-sync-pro
  * Requires PHP: 8.0
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'BSALE_SYNC_VERSION', '1.7.0' );
+define( 'BSALE_SYNC_VERSION', '1.8.0' );
 define( 'BSALE_SYNC_FILE',    __FILE__ );
 define( 'BSALE_SYNC_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'BSALE_SYNC_URL',     plugin_dir_url( __FILE__ ) );

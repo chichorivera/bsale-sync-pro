@@ -95,6 +95,16 @@ class Bsale_API {
     }
 
     /**
+     * Obtiene el precio de una variante dentro de una lista de precios.
+     * Retorna el item con variantValue (neto) y variantValueWithTaxes (con IVA).
+     */
+    public function get_price_list_detail( int $price_list_id, int $variant_id ): array|null|WP_Error {
+        $result = $this->get( "price_lists/{$price_list_id}/details.json", [ 'variantid' => $variant_id ] );
+        if ( is_wp_error( $result ) ) return $result;
+        return ! empty( $result['items'] ) ? $result['items'][0] : null;
+    }
+
+    /**
      * Busca una variante en Bsale por su código (= SKU de WooCommerce).
      * Resultado cacheado 1 hora. Retorna null si no existe en Bsale.
      */
