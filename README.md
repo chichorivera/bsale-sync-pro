@@ -68,7 +68,9 @@ Campo RUT (factura)   →  ej. billing_company_rut
 ```
 
 ### Webhook
-Copia la URL generada y regístrala en **Bsale → Configuración → Webhooks → Stock**. El plugin usa una clave secreta para validar cada notificación.
+Copia la URL generada y regístrala en **Bsale → Configuración → Webhooks** para los topics **Stock** y **Precio**.
+
+El campo **Clave secreta** es editable: puedes pegar una clave existente o usar el botón **Regenerar** para crear una nueva. Si regeneras, recuerda actualizar la URL en Bsale.
 
 ---
 
