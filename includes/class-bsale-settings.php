@@ -116,11 +116,9 @@ class Bsale_Settings {
                     };
                     ?>
 
-                    <?php if ( $active_tab !== 'webhook' ) : ?>
                     <p class="submit">
                         <button type="submit" class="button button-primary">Guardar cambios</button>
                     </p>
-                    <?php endif; ?>
                 </form>
             </div>
         </div>
@@ -400,7 +398,10 @@ class Bsale_Settings {
                 break;
 
             case 'webhook':
-                // Sin campos editables en este tab — la clave se regenera por AJAX
+                $secret = sanitize_text_field( $_POST['bsale_webhook_secret'] ?? '' );
+                if ( ! empty( $secret ) ) {
+                    $settings['webhook_secret'] = $secret;
+                }
                 break;
         }
 
@@ -457,9 +458,9 @@ class Bsale_Settings {
                         <input
                             type="text"
                             id="bsale-webhook-secret"
+                            name="bsale_webhook_secret"
                             value="<?php echo esc_attr( $secret ); ?>"
                             class="regular-text"
-                            readonly
                         >
                         <button type="button" id="bsale-regenerate-secret" class="button button-secondary">
                             Regenerar
