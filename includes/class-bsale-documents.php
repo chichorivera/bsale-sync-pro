@@ -137,68 +137,22 @@ class Bsale_Documents {
     // Resolver cliente (buscar o crear)
     // -------------------------------------------------------------------------
 
-    private function resolve_client( WC_Order $order, string $doc_type ): array|WP_Error {
+    private function resolve_client( WC_Order $order, string $doc_type ): array {
         $is_factura = $doc_type === 'factura';
-        $order_id   = $order->get_id();
 
         $rut_field = $is_factura
             ? ( $this->settings['company_rut_field'] ?? 'billing_company_rut' )
             : ( $this->settings['rut_field'] ?? 'billing_rut' );
 
-        $rut      = preg_replace( '/[^0-9kK]/', '', $order->get_meta( $rut_field ) ?: '' );
-        $our_data = $this->build_client_data( $order, $doc_type, $rut );
+        $rut  = preg_replace( '/[^0-9kK]/', '', $order->get_meta( $rut_field ) ?: '' );
+        $data = $this->build_client_data( $order, $doc_type, $rut );
 
-        // Buscar cliente existente por RUT
-        if ( ! empty( $rut ) ) {
-            $existing = $this->api->get_client_by_rut( $rut );
-            if ( is_wp_error( $existing ) ) return $existing;
+        self::log_sale( 'CLIENT_DATA', $order->get_id(), $data );
 
-            if ( $existing ) {
-                $has_name = ! empty( trim( $existing['firstName'] ?? '' ) )
-                         || ! empty( trim( $existing['company']   ?? '' ) );
-
-                // Log del cliente encontrado para depuración
-                self::log_sale( 'CLIENT_FOUND', $order_id, [
-                    'id'        => $existing['id']        ?? null,
-                    'firstName' => $existing['firstName'] ?? null,
-                    'lastName'  => $existing['lastName']  ?? null,
-                    'company'   => $existing['company']   ?? null,
-                    'has_name'  => $has_name,
-                ] );
-
-                if ( ! $has_name ) {
-                    // Intentar actualizar el nombre del cliente existente
-                    $update_payload = [
-                        'firstName' => $our_data['firstName'],
-                        'lastName'  => $our_data['lastName'],
-                    ];
-                    self::log_sale( 'CLIENT_UPDATE_REQUEST', $order_id, array_merge( [ 'id' => $existing['id'] ], $update_payload ) );
-
-                    $updated = $this->api->update_client( (int) $existing['id'], $update_payload );
-                    self::log_sale( 'CLIENT_UPDATE_RESPONSE', $order_id, is_wp_error( $updated ) ? [ 'error' => $updated->get_error_message() ] : $updated );
-
-                    // Si el update devuelve un cliente con nombre → usar su id
-                    if ( ! is_wp_error( $updated ) && ! empty( $updated['firstName'] ) ) {
-                        return $updated;
-                    }
-
-                    // El update falló o Bsale no guardó el nombre.
-                    // Crear un cliente nuevo SIN código RUT para evitar colisión con el existente sin nombre.
-                    $fallback = $our_data;
-                    unset( $fallback['code'] );
-                    self::log_sale( 'CLIENT_FALLBACK_CREATE', $order_id, $fallback );
-                    return $this->api->create_client( $fallback );
-                }
-
-                return $existing;
-            }
-        }
-
-        // Crear cliente nuevo (no existe en Bsale)
-        self::log_sale( 'CLIENT_CREATE_REQUEST', $order_id, $our_data );
-        $created = $this->api->create_client( $our_data );
-        self::log_sale( 'CLIENT_CREATE_RESPONSE', $order_id, is_wp_error( $created ) ? [ 'error' => $created->get_error_message() ] : $created );
-        return $created;
+        // Devolvemos los datos del pedido directamente — Bsale hace find-or-create
+        // por code (RUT) en el endpoint de documentos. Evitamos usar {id: X} que
+        // puede referenciar un cliente con estado interno inconsistente en Bsale.
+        return $data;
     }
 
     private function build_client_data( WC_Order $order, string $doc_type, string $rut ): array {
