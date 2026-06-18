@@ -109,6 +109,9 @@ bsale-sync-pro/
 │   ├── class-bsale-stock-sync.php  # Webhook REST + procesamiento async
 │   ├── class-bsale-stock-check.php # Verificación al carrito y checkout
 │   └── class-bsale-order-columns.php # Columnas en listado de pedidos
+├── log/
+│   ├── .htaccess                   # Bloquea acceso web directo
+│   └── sales-YYYY-MM-DD.log        # Generado cuando el log de ventas está activo
 └── assets/
     ├── js/bsale-admin.js
     └── css/bsale-admin.css
@@ -130,9 +133,32 @@ bsale-sync-pro/
 - **Fail-open**: si la API no responde o el producto no tiene SKU, las ventas continúan sin interrupciones
 - **Caché**: stock real cacheado 60 segundos por SKU+bodega
 - **Log de eventos**: últimos 100 eventos visibles en la pestaña Webhook del panel
+- **Log de ventas en archivo**: activable desde la pestaña Documentos — guarda request y response JSON de cada venta en `log/sales-YYYY-MM-DD.log`, protegido por `.htaccess`
+- **Actualización de cliente sin nombre**: si el cliente ya existe en Bsale pero fue creado sin nombre, se actualiza automáticamente antes de emitir el documento
+
+---
+
+## Estructura del directorio `log/`
+
+```
+log/
+├── .htaccess          # Bloquea acceso web directo
+├── .gitkeep
+└── sales-2026-06-18.log   # Generado al activar el log de ventas
+```
+
+Cada entrada tiene este formato:
+
+```
+[2026-06-18 12:34:56] ORDER#42 REQUEST:
+{ ... payload enviado a Bsale ... }
+
+[2026-06-18 12:34:57] ORDER#42 RESPONSE:
+{ ... respuesta de Bsale ... }
+```
 
 ---
 
 ## Versión
 
-`1.8.1` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
+`1.9.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.

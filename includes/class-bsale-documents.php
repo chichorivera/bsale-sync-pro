@@ -69,7 +69,15 @@ class Bsale_Documents {
 
         // Construir y enviar documento
         $payload = $this->build_payload( $order, $doc_type, $doc_type_id, $client );
-        $result  = $this->api->create_document( $payload );
+
+        self::log_sale( 'REQUEST', $order_id, $payload );
+
+        $result = $this->api->create_document( $payload );
+
+        self::log_sale( 'RESPONSE', $order_id, is_wp_error( $result )
+            ? [ 'error' => $result->get_error_message() ]
+            : $result
+        );
 
         if ( is_wp_error( $result ) ) {
             $this->save_error( $order, $result->get_error_message() );
@@ -122,24 +130,36 @@ class Bsale_Documents {
     private function resolve_client( WC_Order $order, string $doc_type ): array|WP_Error {
         $is_factura = $doc_type === 'factura';
 
-        $rut_field  = $is_factura
+        $rut_field = $is_factura
             ? ( $this->settings['company_rut_field'] ?? 'billing_company_rut' )
             : ( $this->settings['rut_field'] ?? 'billing_rut' );
 
-        $rut = preg_replace( '/[^0-9kK]/', '', $order->get_meta( $rut_field ) ?: '' );
+        $rut      = preg_replace( '/[^0-9kK]/', '', $order->get_meta( $rut_field ) ?: '' );
+        $our_data = $this->build_client_data( $order, $doc_type, $rut );
 
         // Buscar cliente existente por RUT
         if ( ! empty( $rut ) ) {
             $existing = $this->api->get_client_by_rut( $rut );
             if ( is_wp_error( $existing ) ) return $existing;
-            if ( $existing ) return $existing;
+
+            if ( $existing ) {
+                // Si el cliente existe pero no tiene nombre, actualizarlo antes de usarlo
+                $has_name = ! empty( $existing['firstName'] ) || ! empty( $existing['company'] );
+                if ( ! $has_name ) {
+                    $updated = $this->api->update_client( (int) $existing['id'], [
+                        'firstName' => $our_data['firstName'],
+                        'lastName'  => $our_data['lastName'],
+                    ] );
+                    if ( is_wp_error( $updated ) ) {
+                        error_log( '[Bsale] No se pudo actualizar nombre del cliente #' . $existing['id'] . ': ' . $updated->get_error_message() );
+                    }
+                }
+                return $existing;
+            }
         }
 
         // Crear cliente nuevo
-        $data    = $this->build_client_data( $order, $doc_type, $rut );
-        $created = $this->api->create_client( $data );
-
-        return $created;
+        return $this->api->create_client( $our_data );
     }
 
     private function build_client_data( WC_Order $order, string $doc_type, string $rut ): array {
@@ -414,6 +434,26 @@ class Bsale_Documents {
         $order->update_meta_data( '_bsale_document_error', $message );
         $order->save();
         error_log( '[Bsale] Orden #' . $order->get_id() . ': ' . $message );
+    }
+
+    private static function log_sale( string $label, int $order_id, mixed $data ): void {
+        $settings = get_option( BSALE_SYNC_OPTION, [] );
+        if ( empty( $settings['sales_log_enabled'] ) ) return;
+
+        $log_dir = BSALE_SYNC_DIR . 'log/';
+        if ( ! is_dir( $log_dir ) ) return;
+
+        $log_file = $log_dir . 'sales-' . wp_date( 'Y-m-d' ) . '.log';
+        $entry    = sprintf(
+            "[%s] ORDER#%d %s:\n%s\n\n",
+            wp_date( 'Y-m-d H:i:s' ),
+            $order_id,
+            $label,
+            wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
+        );
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        file_put_contents( $log_file, $entry, FILE_APPEND | LOCK_EX );
     }
 
     /**

@@ -57,6 +57,17 @@ class Bsale_API {
         return $this->parse( $response );
     }
 
+    public function put( string $endpoint, array $body ): array|WP_Error {
+        $response = wp_remote_request( $this->url( $endpoint ), [
+            'method'  => 'PUT',
+            'headers' => $this->headers(),
+            'body'    => wp_json_encode( $body ),
+            'timeout' => 15,
+        ] );
+
+        return $this->parse( $response );
+    }
+
     // -------------------------------------------------------------------------
     // Métodos específicos de la API de Bsale
     // -------------------------------------------------------------------------
@@ -81,6 +92,10 @@ class Bsale_API {
 
     public function create_client( array $data ): array|WP_Error {
         return $this->post( 'clients.json', $data );
+    }
+
+    public function update_client( int $client_id, array $data ): array|WP_Error {
+        return $this->put( "clients/{$client_id}.json", $data );
     }
 
     public function create_document( array $data ): array|WP_Error {

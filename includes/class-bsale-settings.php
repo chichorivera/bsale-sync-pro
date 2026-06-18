@@ -233,6 +233,24 @@ class Bsale_Settings {
                     </p>
                 </td>
             </tr>
+            <tr>
+                <th scope="row">Log de ventas en archivo</th>
+                <td>
+                    <label class="bsale-checkbox-label">
+                        <input
+                            type="checkbox"
+                            name="bsale_sales_log_enabled"
+                            value="1"
+                            <?php checked( $settings['sales_log_enabled'], true ); ?>
+                        >
+                        Guardar request y response de cada venta en <code>log/sales-YYYY-MM-DD.log</code>
+                    </label>
+                    <p class="description">
+                        Útil para depurar errores. Los archivos quedan dentro del directorio <code>log/</code> del plugin.
+                        Desactívalo en producción cuando no lo necesites.
+                    </p>
+                </td>
+            </tr>
         </table>
         <?php
     }
@@ -385,7 +403,8 @@ class Bsale_Settings {
                 $settings['factura_doc_type_id'] = sanitize_text_field( $_POST['bsale_factura_doc_type_id'] ?? '' );
                 $settings['price_list_id']        = sanitize_text_field( $_POST['bsale_price_list_id'] ?? '' );
                 $settings['office_id']            = sanitize_text_field( $_POST['bsale_office_id'] ?? '' );
-                $settings['dispatch_on_emit']     = isset( $_POST['bsale_dispatch_on_emit'] );
+                $settings['dispatch_on_emit']   = isset( $_POST['bsale_dispatch_on_emit'] );
+                $settings['sales_log_enabled'] = isset( $_POST['bsale_sales_log_enabled'] );
                 break;
 
             case 'mapeo':
@@ -624,6 +643,7 @@ class Bsale_Settings {
                 'price_list_id'       => '',
                 'office_id'           => '',
                 'dispatch_on_emit'    => true,
+                'sales_log_enabled'   => false,
                 // Mapeo
                 'doc_type_field'      => 'document_type',
                 'boleta_value'        => 'boleta',

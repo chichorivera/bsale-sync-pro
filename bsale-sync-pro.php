@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  Bsale Sync Pro
  * Description:  Integración Bsale ↔ WooCommerce: emisión de documentos, sincronización de stock y verificación en tiempo real.
- * Version:      1.8.2
+ * Version:      1.9.0
  * Author:       JJRC
  * Text Domain:  bsale-sync-pro
  * Requires PHP: 8.0
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'BSALE_SYNC_VERSION', '1.8.2' );
+define( 'BSALE_SYNC_VERSION', '1.9.0' );
 define( 'BSALE_SYNC_FILE',    __FILE__ );
 define( 'BSALE_SYNC_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'BSALE_SYNC_URL',     plugin_dir_url( __FILE__ ) );
@@ -60,12 +60,19 @@ function bsale_sync_init(): void {
 add_action( 'plugins_loaded', 'bsale_sync_init' );
 
 /**
- * Activación: generar webhook secret si no existe.
+ * Activación: generar webhook secret si no existe y preparar directorio de logs.
  */
 register_activation_hook( __FILE__, function (): void {
     $settings = get_option( BSALE_SYNC_OPTION, [] );
     if ( empty( $settings['webhook_secret'] ) ) {
         $settings['webhook_secret'] = wp_generate_password( 40, false );
         update_option( BSALE_SYNC_OPTION, $settings );
+    }
+
+    $log_dir = plugin_dir_path( __FILE__ ) . 'log/';
+    if ( ! is_dir( $log_dir ) ) {
+        wp_mkdir_p( $log_dir );
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        file_put_contents( $log_dir . '.htaccess', "Order allow,deny\nDeny from all\n" );
     }
 } );
