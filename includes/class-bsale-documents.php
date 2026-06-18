@@ -215,19 +215,25 @@ class Bsale_Documents {
         $details = [];
 
         foreach ( $order->get_items() as $item ) {
-            $qty        = (int) $item->get_quantity();
-            $line_total = (float) $item->get_total(); // neto, descuentos ya aplicados
+            $qty      = (int) $item->get_quantity();
+            $subtotal = (float) $item->get_subtotal(); // precio original antes de descuentos
+            $total    = (float) $item->get_total();    // precio final después de descuentos
 
-            $net_unit_value = $qty > 0 ? round( $line_total / $qty, 4 ) : 0;
+            $net_unit_value = $qty > 0 ? round( $subtotal / $qty, 4 ) : 0;
+
+            // Porcentaje de descuento efectivo (cubre precio oferta + cupón + combinados)
+            $discount = 0;
+            if ( $subtotal > 0 && $total < $subtotal ) {
+                $discount = round( ( 1 - $total / $subtotal ) * 100, 2 );
+            }
 
             $detail = [
                 'netUnitValue' => $net_unit_value,
                 'quantity'     => $qty,
-                'discount'     => 0,
+                'discount'     => $discount,
                 'comment'      => $item->get_name(),
             ];
 
-            // Usar SKU directamente como `code` en el detalle (Bsale lo acepta como alternativa a variantId)
             $product = $item->get_product();
             $sku     = $product ? $product->get_sku() : '';
 
@@ -236,6 +242,17 @@ class Bsale_Documents {
             }
 
             $details[] = $detail;
+        }
+
+        // Costo de envío como línea separada (solo si es mayor a cero)
+        $shipping_total = (float) $order->get_shipping_total();
+        if ( $shipping_total > 0 ) {
+            $details[] = [
+                'netUnitValue' => round( $shipping_total, 4 ),
+                'quantity'     => 1,
+                'comment'      => 'Costo de Envío',
+                'discount'     => 0,
+            ];
         }
 
         return $details;
