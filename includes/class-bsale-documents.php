@@ -87,15 +87,17 @@ class Bsale_Documents {
             : $result
         );
 
-        delete_transient( $lock_key );
-
         if ( is_wp_error( $result ) ) {
             $this->save_error( $order, $result->get_error_message() );
             error_log( '[Bsale] Error emisión orden #' . $order_id . ': ' . $result->get_error_message() );
+            delete_transient( $lock_key );
             return;
         }
 
-        // Guardar resultado exitoso
+        // Guardar resultado exitoso — desregistrar el hook mientras guardamos para
+        // evitar que el save del pedido vuelva a disparar emit_document
+        remove_action( 'woocommerce_order_status_processing', [ $this, 'emit_document' ], 10 );
+
         $doc_id  = (string) ( $result['id'] ?? '' );
         $doc_url = $result['urlPdf'] ?? $result['url'] ?? '';
 
@@ -105,6 +107,9 @@ class Bsale_Documents {
         $order->update_meta_data( '_bsale_emission_date', time() );
         $order->delete_meta_data( '_bsale_document_error' );
         $order->save();
+
+        add_action( 'woocommerce_order_status_processing', [ $this, 'emit_document' ], 10 );
+        delete_transient( $lock_key );
 
         $order->add_order_note(
             sprintf( 'Bsale: %s emitida. ID #%s', ucfirst( $doc_type ), $doc_id ),
@@ -237,7 +242,9 @@ class Bsale_Documents {
             $subtotal = (float) $item->get_subtotal(); // precio original antes de descuentos
             $total    = (float) $item->get_total();    // precio final después de descuentos
 
-            $net_unit_value = $qty > 0 ? round( $subtotal / $qty, 4 ) : 0;
+            // Los precios en WooCommerce incluyen IVA. Bsale espera el valor neto
+            // y calcula el IVA por su cuenta → dividimos por 1.19 (IVA chileno).
+            $net_unit_value = $qty > 0 ? round( $subtotal / $qty / 1.19, 4 ) : 0;
 
             // Porcentaje de descuento efectivo (cubre precio oferta + cupón + combinados)
             $discount = 0;
@@ -395,10 +402,12 @@ class Bsale_Documents {
             wp_send_json_error( [ 'message' => 'Pedido no encontrado.' ] );
         }
 
-        // Limpiar estado previo para forzar reemisión
+        // Limpiar estado previo — desregistrar hook para que el save no dispare emit_document
+        remove_action( 'woocommerce_order_status_processing', [ $this, 'emit_document' ], 10 );
         $order->delete_meta_data( '_bsale_document_id' );
         $order->delete_meta_data( '_bsale_document_error' );
         $order->save();
+        add_action( 'woocommerce_order_status_processing', [ $this, 'emit_document' ], 10 );
 
         $this->emit_document( $order_id );
 
