@@ -185,7 +185,10 @@ class Bsale_Documents {
         }
 
         // Crear cliente nuevo (no existe en Bsale)
-        return $this->api->create_client( $our_data );
+        self::log_sale( 'CLIENT_CREATE_REQUEST', $order_id, $our_data );
+        $created = $this->api->create_client( $our_data );
+        self::log_sale( 'CLIENT_CREATE_RESPONSE', $order_id, is_wp_error( $created ) ? [ 'error' => $created->get_error_message() ] : $created );
+        return $created;
     }
 
     private function build_client_data( WC_Order $order, string $doc_type, string $rut ): array {
@@ -202,7 +205,6 @@ class Bsale_Documents {
         $city         = $this->state_code_to_name( $order->get_billing_state() );
 
         $data = [
-            'code'            => $rut,
             'firstName'       => $order->get_billing_first_name() ?: 'Consumidor',
             'lastName'        => $order->get_billing_last_name()  ?: 'Final',
             'email'           => $order->get_billing_email(),
@@ -212,6 +214,12 @@ class Bsale_Documents {
             'activity'        => $is_factura ? $giro : 'Sin giro',
             'companyOrPerson' => $is_factura ? 1 : 0,
         ];
+
+        // Solo incluir 'code' (RUT) si está presente — evita que Bsale haga
+        // deduplicación por code vacío y devuelva un cliente existente sin nombre
+        if ( ! empty( $rut ) ) {
+            $data['code'] = $rut;
+        }
 
         if ( $is_factura ) {
             $data['company'] = $order->get_billing_company();
