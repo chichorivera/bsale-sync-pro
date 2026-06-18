@@ -119,6 +119,8 @@ bsale-sync-pro/
 ## Notas técnicas
 
 - **Match por SKU**: el campo `code` de cada variante en Bsale debe coincidir exactamente con el SKU del producto en WooCommerce
+- **Descuentos explícitos**: cada línea del documento muestra el precio original y el porcentaje de descuento efectivo, cubriendo precios de oferta, cupones y combinaciones de ambos
+- **Costo de envío**: se agrega automáticamente como línea separada en el documento cuando el envío tiene costo mayor a cero. El retiro en tienda y envío gratis se omiten.
 - **Webhook unificado**: el mismo endpoint maneja los topics `stock` y `price` de Bsale. Solo se procesan precios si la lista coincide con la configurada en el panel
 - **Gestión de inventario automática**: al sincronizar stock, activa `manage_stock` en el producto WooCommerce si no estaba habilitado
 - **Sin llamadas extra**: el stock se consulta directo con `GET /stocks.json?code={sku}&officeid={id}` y los detalles del documento usan `code` (SKU) en vez de `variantId` — sin pasos intermedios
@@ -133,4 +135,4 @@ bsale-sync-pro/
 
 ## Versión
 
-`1.8.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
+`1.8.1` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
