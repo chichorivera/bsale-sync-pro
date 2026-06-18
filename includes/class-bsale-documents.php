@@ -157,8 +157,8 @@ class Bsale_Documents {
 
         $data = [
             'code'            => $rut,
-            'firstName'       => $order->get_billing_first_name(),
-            'lastName'        => $order->get_billing_last_name(),
+            'firstName'       => $order->get_billing_first_name() ?: 'Consumidor',
+            'lastName'        => $order->get_billing_last_name()  ?: 'Final',
             'email'           => $order->get_billing_email(),
             'address'         => $address,
             'municipality'    => $municipality,
