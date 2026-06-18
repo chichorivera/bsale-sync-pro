@@ -154,7 +154,17 @@ class Bsale_Documents {
             if ( is_wp_error( $existing ) ) return $existing;
 
             if ( $existing ) {
-                $has_name = ! empty( $existing['firstName'] ) || ! empty( $existing['company'] );
+                $has_name = ! empty( trim( $existing['firstName'] ?? '' ) )
+                         || ! empty( trim( $existing['company']   ?? '' ) );
+
+                // Log del cliente encontrado para depuración
+                self::log_sale( 'CLIENT_FOUND', $order_id, [
+                    'id'        => $existing['id']        ?? null,
+                    'firstName' => $existing['firstName'] ?? null,
+                    'lastName'  => $existing['lastName']  ?? null,
+                    'company'   => $existing['company']   ?? null,
+                    'has_name'  => $has_name,
+                ] );
 
                 if ( ! $has_name ) {
                     // Intentar actualizar el nombre del cliente existente
