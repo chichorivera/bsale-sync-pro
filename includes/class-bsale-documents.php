@@ -39,6 +39,11 @@ class Bsale_Documents {
         // Guard: no emitir si ya existe un documento
         if ( $order->get_meta( '_bsale_document_id' ) ) return;
 
+        // Lock por pedido: evita llamadas concurrentes (hook + AJAX simultáneos)
+        $lock_key = 'bsale_emit_' . $order_id;
+        if ( get_transient( $lock_key ) ) return;
+        set_transient( $lock_key, 1, 60 );
+
         $this->api      = new Bsale_API();
         $this->settings = get_option( BSALE_SYNC_OPTION, [] );
 
@@ -46,6 +51,7 @@ class Bsale_Documents {
         $error = $this->validate_settings();
         if ( $error ) {
             $this->save_error( $order, $error );
+            delete_transient( $lock_key );
             return;
         }
 
@@ -57,6 +63,7 @@ class Bsale_Documents {
 
         if ( $doc_type_id <= 0 ) {
             $this->save_error( $order, "documentTypeId no configurado para '{$doc_type}'. Revisa el tab Documentos." );
+            delete_transient( $lock_key );
             return;
         }
 
@@ -64,6 +71,7 @@ class Bsale_Documents {
         $client = $this->resolve_client( $order, $doc_type );
         if ( is_wp_error( $client ) ) {
             $this->save_error( $order, 'Cliente: ' . $client->get_error_message() );
+            delete_transient( $lock_key );
             return;
         }
 
@@ -78,6 +86,8 @@ class Bsale_Documents {
             ? [ 'error' => $result->get_error_message() ]
             : $result
         );
+
+        delete_transient( $lock_key );
 
         if ( is_wp_error( $result ) ) {
             $this->save_error( $order, $result->get_error_message() );
@@ -129,6 +139,7 @@ class Bsale_Documents {
 
     private function resolve_client( WC_Order $order, string $doc_type ): array|WP_Error {
         $is_factura = $doc_type === 'factura';
+        $order_id   = $order->get_id();
 
         $rut_field = $is_factura
             ? ( $this->settings['company_rut_field'] ?? 'billing_company_rut' )
@@ -143,22 +154,37 @@ class Bsale_Documents {
             if ( is_wp_error( $existing ) ) return $existing;
 
             if ( $existing ) {
-                // Si el cliente existe pero no tiene nombre, actualizarlo antes de usarlo
                 $has_name = ! empty( $existing['firstName'] ) || ! empty( $existing['company'] );
+
                 if ( ! $has_name ) {
-                    $updated = $this->api->update_client( (int) $existing['id'], [
+                    // Intentar actualizar el nombre del cliente existente
+                    $update_payload = [
                         'firstName' => $our_data['firstName'],
                         'lastName'  => $our_data['lastName'],
-                    ] );
-                    if ( is_wp_error( $updated ) ) {
-                        error_log( '[Bsale] No se pudo actualizar nombre del cliente #' . $existing['id'] . ': ' . $updated->get_error_message() );
+                    ];
+                    self::log_sale( 'CLIENT_UPDATE_REQUEST', $order_id, array_merge( [ 'id' => $existing['id'] ], $update_payload ) );
+
+                    $updated = $this->api->update_client( (int) $existing['id'], $update_payload );
+                    self::log_sale( 'CLIENT_UPDATE_RESPONSE', $order_id, is_wp_error( $updated ) ? [ 'error' => $updated->get_error_message() ] : $updated );
+
+                    // Si el update devuelve un cliente con nombre → usar su id
+                    if ( ! is_wp_error( $updated ) && ! empty( $updated['firstName'] ) ) {
+                        return $updated;
                     }
+
+                    // El update falló o Bsale no guardó el nombre.
+                    // Crear un cliente nuevo SIN código RUT para evitar colisión con el existente sin nombre.
+                    $fallback = $our_data;
+                    unset( $fallback['code'] );
+                    self::log_sale( 'CLIENT_FALLBACK_CREATE', $order_id, $fallback );
+                    return $this->api->create_client( $fallback );
                 }
+
                 return $existing;
             }
         }
 
-        // Crear cliente nuevo
+        // Crear cliente nuevo (no existe en Bsale)
         return $this->api->create_client( $our_data );
     }
 
