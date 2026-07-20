@@ -8,11 +8,11 @@ Plugin WordPress/WooCommerce que conecta tu tienda con **Bsale**, el ERP chileno
 
 | Módulo | Descripción |
 |---|---|
-| 🧾 **Emisión de documentos** | Genera boleta o factura en Bsale cuando un pedido pasa a "Procesando" |
-| 📦 **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante. Activa la gestión de inventario automáticamente. |
-| 💲 **Sincronización de precios** | Recibe webhooks de Bsale y actualiza el precio regular del producto en WooCommerce cuando cambia en la lista de precios configurada |
-| 🔍 **Verificación en tiempo real** | Consulta el stock real en Bsale al agregar al carrito y antes del checkout |
-| 🚨 **Sincronización masiva (SOS)** | Actualiza stock y/o precios de todos los productos WooCommerce desde Bsale en un clic |
+| **Emisión de documentos** | Genera boleta o factura en Bsale cuando un pedido pasa a "Procesando" |
+| **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante. Activa la gestión de inventario automáticamente. |
+| **Sincronización de precios** | Recibe webhooks de Bsale y actualiza el precio regular del producto en WooCommerce cuando cambia en la lista de precios configurada |
+| **Verificación en tiempo real** | Consulta el stock real en Bsale al agregar al carrito y antes del checkout |
+| **Sincronización masiva (SOS)** | Actualiza stock y/o precios de todos los productos WooCommerce desde Bsale en un clic |
 
 ---
 
