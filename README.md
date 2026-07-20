@@ -12,6 +12,7 @@ Plugin WordPress/WooCommerce que conecta tu tienda con **Bsale**, el ERP chileno
 | 📦 **Sincronización de stock** | Recibe webhooks de Bsale y actualiza el stock en WooCommerce al instante. Activa la gestión de inventario automáticamente. |
 | 💲 **Sincronización de precios** | Recibe webhooks de Bsale y actualiza el precio regular del producto en WooCommerce cuando cambia en la lista de precios configurada |
 | 🔍 **Verificación en tiempo real** | Consulta el stock real en Bsale al agregar al carrito y antes del checkout |
+| 🚨 **Sincronización masiva (SOS)** | Actualiza stock y/o precios de todos los productos WooCommerce desde Bsale en un clic |
 
 ---
 
@@ -70,6 +71,14 @@ Campo RUT (factura)   →  ej. billing_company_rut
 ### Webhook
 Copia la URL generada y regístrala en **Bsale → Configuración → Webhooks** para los topics **Stock** y **Precio**.
 
+### Sincronización (SOS)
+Botones de sincronización masiva para situaciones de emergencia o primera puesta en marcha:
+
+- **Sincronizar stock** — recorre todos los productos WooCommerce con SKU, consulta el stock disponible en Bsale para la bodega configurada y lo actualiza en WooCommerce. Para productos variables solo procesa las variaciones.
+- **Sincronizar precios** — busca cada SKU en Bsale, obtiene el precio con IVA de la lista configurada y actualiza el precio regular en WooCommerce.
+
+Ambas operaciones procesan en lotes de 15 SKUs con barra de progreso en tiempo real. El informe final indica qué SKUs se sincronizaron, cuáles no existen en Bsale y si hubo errores.
+
 El campo **Clave secreta** es editable: puedes pegar una clave existente o usar el botón **Regenerar** para crear una nueva. Si regeneras, recuerda actualizar la URL en Bsale.
 
 ---
@@ -127,6 +136,8 @@ bsale-sync-pro/
 - **Webhook unificado**: el mismo endpoint maneja los topics `stock` y `price` de Bsale. Solo se procesan precios si la lista coincide con la configurada en el panel
 - **Gestión de inventario automática**: al sincronizar stock, activa `manage_stock` en el producto WooCommerce si no estaba habilitado
 - **Sin llamadas extra**: el stock se consulta directo con `GET /stocks.json?code={sku}&officeid={id}` y los detalles del documento usan `code` (SKU) en vez de `variantId` — sin pasos intermedios
+- **Sincronización masiva en lotes**: el tab Sincronización procesa 15 SKUs por lote AJAX secuencial — maneja catálogos de miles de productos sin agotar el tiempo de ejecución PHP
+- **Precios con IVA**: la sync masiva usa `variantValueWithTaxes` de Bsale (precio con IVA) para actualizar el precio regular en WooCommerce, consistente con la convención de precios chilenos
 - **Solo registros activos**: los selects de configuración filtran con `state=0` (activo en la convención de Bsale)
 - **Anti-duplicado**: `salesId = order_id` en cada documento previene emisiones dobles
 - **HPOS compatible**: funciona con almacenamiento clásico y con el nuevo HPOS de WooCommerce 7.1+
@@ -161,4 +172,4 @@ Cada entrada tiene este formato:
 
 ## Versión
 
-`1.9.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.
+`2.0.0` — Desarrollado para tiendas WooCommerce chilenas con facturación electrónica Bsale.

@@ -205,6 +205,161 @@
     }
 
     // -------------------------------------------------------------------------
+    // Tab: Sincronización (SOS) — sincronización masiva de stock y precios
+    // -------------------------------------------------------------------------
+
+    if (currentTab === 'sos') {
+        $('#bsale-sync-stock-btn').on('click', function () { startBulkSync('stock'); });
+        $('#bsale-sync-price-btn').on('click', function () { startBulkSync('price'); });
+    }
+
+    function startBulkSync(type) {
+        const $btn      = $('#bsale-sync-' + type + '-btn');
+        const $progress = $('#bsale-sync-' + type + '-progress');
+        const $fill     = $progress.find('.bsale-progress-fill');
+        const $text     = $progress.find('.bsale-progress-text');
+        const $report   = $('#bsale-sync-' + type + '-report');
+
+        $btn.prop('disabled', true);
+        $progress.show();
+        $fill.css('width', '0%');
+        $report.empty();
+        $text.text('Obteniendo productos…');
+
+        $.post(bsaleAdmin.ajax_url, {
+            action: 'bsale_get_sync_products',
+            nonce:  bsaleAdmin.nonce,
+        })
+        .done(function (response) {
+            if (!response.success) {
+                showBulkError($report, response.data.message);
+                resetBulkBtn($btn, type);
+                return;
+            }
+
+            const items     = response.data.items;
+            const total     = items.length;
+            const batchSize = 15;
+            let   processed = 0;
+            let   allResults = [];
+
+            if (!total) {
+                $text.text('No hay productos con SKU para sincronizar.');
+                resetBulkBtn($btn, type);
+                return;
+            }
+
+            $text.text('0 / ' + total + ' SKUs procesados…');
+
+            function processBatch(offset) {
+                if (offset >= total) {
+                    $fill.css('width', '100%');
+                    $text.text('Completado: ' + total + ' SKUs procesados.');
+                    renderBulkReport($report, allResults);
+                    resetBulkBtn($btn, type);
+                    return;
+                }
+
+                const batch = items.slice(offset, offset + batchSize);
+
+                $.post(bsaleAdmin.ajax_url, {
+                    action: 'bsale_sync_' + type + '_batch',
+                    nonce:  bsaleAdmin.nonce,
+                    items:  batch,
+                })
+                .done(function (res) {
+                    if (res.success && res.data && res.data.results) {
+                        allResults = allResults.concat(res.data.results);
+                    }
+                })
+                .always(function () {
+                    processed = Math.min(offset + batchSize, total);
+                    const pct = Math.round((processed / total) * 100);
+                    $fill.css('width', pct + '%');
+                    $text.text(processed + ' / ' + total + ' SKUs procesados…');
+                    processBatch(offset + batchSize);
+                });
+            }
+
+            processBatch(0);
+        })
+        .fail(function () {
+            showBulkError($report, 'Error de red al obtener productos.');
+            resetBulkBtn($btn, type);
+            $progress.hide();
+        });
+    }
+
+    function resetBulkBtn($btn, type) {
+        const labels = { stock: 'Sincronizar stock', price: 'Sincronizar precios' };
+        $btn.prop('disabled', false).text(labels[type] || 'Sincronizar de nuevo');
+    }
+
+    function showBulkError($report, msg) {
+        $report.html('<p class="bsale-sync-error">' + escHtml(msg) + '</p>');
+    }
+
+    function renderBulkReport($report, results) {
+        if (!results.length) {
+            $report.html('<p class="description">Sin resultados para mostrar.</p>');
+            return;
+        }
+
+        const ok        = results.filter(function (r) { return r.status === 'ok'; }).length;
+        const notFound  = results.filter(function (r) { return r.status === 'not_found'; }).length;
+        const notInList = results.filter(function (r) { return r.status === 'not_in_list'; }).length;
+        const errors    = results.filter(function (r) { return r.status === 'error'; }).length;
+
+        let summary = '<div class="bsale-sync-summary">'
+            + '<span class="bsale-sync-ok">✓ ' + ok + ' sincronizado' + (ok !== 1 ? 's' : '') + '</span>';
+
+        if (notFound || notInList) {
+            summary += '&nbsp;&nbsp;<span class="bsale-sync-warn">✗ ' + (notFound + notInList) + ' no encontrado' + ((notFound + notInList) !== 1 ? 's' : '') + ' en Bsale</span>';
+        }
+        if (errors) {
+            summary += '&nbsp;&nbsp;<span class="bsale-sync-err">⚠ ' + errors + ' error' + (errors !== 1 ? 'es' : '') + '</span>';
+        }
+        summary += '</div>';
+
+        let rows = '';
+        results.forEach(function (r) {
+            const icon = r.status === 'ok'
+                ? '<span class="bsale-status-ok">✓</span>'
+                : (r.status === 'not_found' || r.status === 'not_in_list'
+                    ? '<span class="bsale-status-warn">✗</span>'
+                    : '<span class="bsale-status-err">⚠</span>');
+
+            const detail = r.status === 'ok'        ? escHtml(r.detail || 'Actualizado')
+                         : r.status === 'not_found' ? 'No existe en Bsale'
+                         : r.status === 'not_in_list' ? escHtml(r.detail || 'No está en la lista de precios')
+                         : escHtml(r.detail || 'Error');
+
+            rows += '<tr>'
+                + '<td><code>' + escHtml(r.sku) + '</code></td>'
+                + '<td>' + escHtml(r.name || '') + '</td>'
+                + '<td style="text-align:center">' + icon + '</td>'
+                + '<td>' + detail + '</td>'
+                + '</tr>';
+        });
+
+        const table = '<div class="bsale-sync-table-wrap">'
+            + '<table class="bsale-sync-table widefat striped">'
+            + '<thead><tr><th>SKU</th><th>Producto</th><th style="width:40px">Estado</th><th>Detalle</th></tr></thead>'
+            + '<tbody>' + rows + '</tbody>'
+            + '</table></div>';
+
+        $report.html(summary + table);
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // -------------------------------------------------------------------------
     // Pedido admin — botón reintentar/emitir documento Bsale
     // -------------------------------------------------------------------------
 

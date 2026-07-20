@@ -112,13 +112,16 @@ class Bsale_Settings {
                         'documentos' => $this->render_tab_documentos( $settings ),
                         'mapeo'      => $this->render_tab_mapeo( $settings ),
                         'webhook'    => $this->render_tab_webhook( $settings ),
+                        'sos'        => $this->render_tab_sos( $settings ),
                         default      => $this->render_tab_conexion( $settings ),
                     };
                     ?>
 
+                    <?php if ( 'sos' !== $active_tab ) : ?>
                     <p class="submit">
                         <button type="submit" class="button button-primary">Guardar cambios</button>
                     </p>
+                    <?php endif; ?>
                 </form>
             </div>
         </div>
@@ -628,6 +631,80 @@ class Bsale_Settings {
     }
 
     // -------------------------------------------------------------------------
+    // Tab: Sincronización (SOS)
+    // -------------------------------------------------------------------------
+
+    private function render_tab_sos( array $settings ): void {
+        $has_token      = ! empty( $settings['access_token'] );
+        $has_office     = ! empty( $settings['office_id'] );
+        $has_price_list = ! empty( $settings['price_list_id'] );
+        ?>
+        <p class="bsale-tab-description">
+            Sincroniza masivamente <strong>stock</strong> y/o <strong>precios</strong> desde Bsale hacia WooCommerce,
+            basándose en los SKU de tus productos. Para productos variables solo se procesan las variaciones.
+            <strong>No se crean productos nuevos.</strong>
+        </p>
+
+        <?php if ( ! $has_token ) : ?>
+            <div class="notice notice-warning inline" style="margin:0 0 16px">
+                <p>Configura el <strong>Token de API</strong> en la pestaña <strong>Conexión</strong> primero.</p>
+            </div>
+        <?php else : ?>
+
+        <div class="bsale-sos-grid">
+
+            <!-- Panel: Stock -->
+            <div class="bsale-sos-panel">
+                <h3 class="bsale-section-heading" style="margin-top:0">Stock</h3>
+                <?php if ( ! $has_office ) : ?>
+                    <p class="description bsale-sos-warning">
+                        Configura la <strong>Bodega activa</strong> en la pestaña <strong>Documentos</strong> primero.
+                    </p>
+                <?php else : ?>
+                    <p class="description">
+                        Actualiza el stock en WooCommerce con el disponible en Bsale (bodega configurada).
+                        Activa la gestión de inventario si no estaba habilitada.
+                    </p>
+                    <button type="button" id="bsale-sync-stock-btn" class="button button-primary">
+                        Sincronizar stock
+                    </button>
+                    <div id="bsale-sync-stock-progress" class="bsale-sync-progress" style="display:none">
+                        <div class="bsale-progress-bar"><div class="bsale-progress-fill"></div></div>
+                        <span class="bsale-progress-text">Iniciando…</span>
+                    </div>
+                    <div id="bsale-sync-stock-report" class="bsale-sync-report"></div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Panel: Precios -->
+            <div class="bsale-sos-panel">
+                <h3 class="bsale-section-heading" style="margin-top:0">Precios</h3>
+                <?php if ( ! $has_price_list ) : ?>
+                    <p class="description bsale-sos-warning">
+                        Configura la <strong>Lista de precio</strong> en la pestaña <strong>Documentos</strong> primero.
+                    </p>
+                <?php else : ?>
+                    <p class="description">
+                        Actualiza el precio regular en WooCommerce según la lista de precios configurada en Bsale
+                        (<code>variantValueWithTaxes</code>).
+                    </p>
+                    <button type="button" id="bsale-sync-price-btn" class="button button-primary">
+                        Sincronizar precios
+                    </button>
+                    <div id="bsale-sync-price-progress" class="bsale-sync-progress" style="display:none">
+                        <div class="bsale-progress-bar"><div class="bsale-progress-fill"></div></div>
+                        <span class="bsale-progress-text">Iniciando…</span>
+                    </div>
+                    <div id="bsale-sync-price-report" class="bsale-sync-report"></div>
+                <?php endif; ?>
+            </div>
+
+        </div>
+        <?php endif; ?>
+        <?php
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -663,6 +740,7 @@ class Bsale_Settings {
             'documentos' => 'Documentos',
             'mapeo'      => 'Mapeo de campos',
             'webhook'    => 'Webhook',
+            'sos'        => 'Sincronización',
         ];
     }
 

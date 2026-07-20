@@ -219,3 +219,108 @@
     gap: 6px;
     font-size: 13px;
 }
+
+/* ---- Tab SOS — Sincronización masiva ---- */
+
+.bsale-sos-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+    .bsale-sos-grid { grid-template-columns: 1fr; }
+}
+
+.bsale-sos-warning {
+    color: #996800;
+    font-weight: 500;
+}
+
+/* Progress */
+
+.bsale-sync-progress {
+    margin: 14px 0 6px;
+}
+
+.bsale-progress-bar {
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.bsale-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #2271b1;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.bsale-progress-text {
+    font-size: 12px;
+    color: #646970;
+}
+
+/* Report */
+
+.bsale-sync-report {
+    margin-top: 16px;
+}
+
+.bsale-sync-summary {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 12px;
+    background: #f6f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    margin-bottom: 10px;
+}
+
+.bsale-sync-ok   { color: #1c9e58; font-weight: 600; }
+.bsale-sync-warn { color: #996800; font-weight: 600; }
+.bsale-sync-err  { color: #cc1818; font-weight: 600; }
+
+.bsale-sync-table-wrap {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+}
+
+.bsale-sync-table {
+    font-size: 12px;
+    border: none;
+    margin: 0;
+}
+
+.bsale-sync-table thead th {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #646970;
+    position: sticky;
+    top: 0;
+    background: #f6f7f7;
+    z-index: 1;
+}
+
+.bsale-status-ok   { color: #1c9e58; font-weight: 700; }
+.bsale-status-warn { color: #996800; font-weight: 700; }
+.bsale-status-err  { color: #cc1818; font-weight: 700; }
+
+.bsale-sync-error {
+    font-size: 13px;
+    font-weight: 500;
+    color: #cc1818;
+    background: #fff0f0;
+    border: 1px solid #f5a0a0;
+    border-radius: 3px;
+    padding: 8px 12px;
+    margin: 0;
+}
