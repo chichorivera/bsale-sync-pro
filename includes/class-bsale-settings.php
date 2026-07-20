@@ -113,11 +113,12 @@ class Bsale_Settings {
                         'mapeo'      => $this->render_tab_mapeo( $settings ),
                         'webhook'    => $this->render_tab_webhook( $settings ),
                         'sos'        => $this->render_tab_sos( $settings ),
+                        'status'     => $this->render_tab_status( $settings ),
                         default      => $this->render_tab_conexion( $settings ),
                     };
                     ?>
 
-                    <?php if ( 'sos' !== $active_tab ) : ?>
+                    <?php if ( ! in_array( $active_tab, [ 'sos', 'status' ], true ) ) : ?>
                     <p class="submit">
                         <button type="submit" class="button button-primary">Guardar cambios</button>
                     </p>
@@ -631,6 +632,59 @@ class Bsale_Settings {
     }
 
     // -------------------------------------------------------------------------
+    // Tab: Status — comparativa WooCommerce vs Bsale
+    // -------------------------------------------------------------------------
+
+    private function render_tab_status( array $settings ): void {
+        if ( empty( $settings['access_token'] ) ) {
+            echo '<div class="notice notice-warning inline" style="margin:0 0 16px"><p>'
+                . 'Configura el <strong>Token de API</strong> en la pestaña <strong>Conexión</strong> primero.'
+                . '</p></div>';
+            return;
+        }
+        ?>
+        <p class="bsale-tab-description">
+            Comparativa en tiempo real entre WooCommerce y Bsale por SKU.
+            Los valores de Bsale se cargan progresivamente desde la API.
+        </p>
+
+        <div id="bsale-status-container">
+            <div id="bsale-status-topbar">
+                <div id="bsale-status-summary" class="bsale-status-summary-bar" style="display:none"></div>
+                <button type="button" id="bsale-status-reload" class="button button-secondary" style="display:none">
+                    ↺ Recargar
+                </button>
+            </div>
+
+            <div id="bsale-status-loading" class="bsale-status-loading">
+                <span class="spinner is-active" style="float:none;vertical-align:middle;margin:0 8px 0 0"></span>
+                Cargando productos…
+            </div>
+
+            <div id="bsale-status-table-wrap" style="display:none">
+                <div id="bsale-status-progress" class="bsale-sync-progress" style="display:none">
+                    <div class="bsale-progress-bar"><div class="bsale-progress-fill"></div></div>
+                    <span class="bsale-progress-text">Consultando Bsale…</span>
+                </div>
+                <div class="bsale-status-table-scroll">
+                    <table class="widefat striped bsale-status-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th class="bsale-col-vs">Stock<span class="bsale-vs-legend">Ecom&thinsp;/&thinsp;Bsale</span></th>
+                                <th class="bsale-col-vs">Precio<span class="bsale-vs-legend">Ecom&thinsp;/&thinsp;Bsale</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bsale-status-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    // -------------------------------------------------------------------------
     // Tab: Sincronización (SOS)
     // -------------------------------------------------------------------------
 
@@ -741,6 +795,7 @@ class Bsale_Settings {
             'mapeo'      => 'Mapeo de campos',
             'webhook'    => 'Webhook',
             'sos'        => 'Sincronización',
+            'status'     => 'Status',
         ];
     }
 

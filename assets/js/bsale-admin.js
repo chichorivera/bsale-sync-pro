@@ -360,6 +360,229 @@
     }
 
     // -------------------------------------------------------------------------
+    // Tab: Status — comparativa WC vs Bsale
+    // -------------------------------------------------------------------------
+
+    if (currentTab === 'status') {
+        loadStatusProducts();
+
+        $('#bsale-status-reload').on('click', function () {
+            $(this).hide();
+            $('#bsale-status-summary').hide();
+            loadStatusProducts();
+        });
+    }
+
+    function loadStatusProducts() {
+        $('#bsale-status-loading').show();
+        $('#bsale-status-table-wrap').hide();
+        $('#bsale-status-tbody').empty();
+
+        $.post(bsaleAdmin.ajax_url, {
+            action: 'bsale_status_products',
+            nonce:  bsaleAdmin.nonce,
+        })
+        .done(function (res) {
+            if (!res.success) {
+                $('#bsale-status-loading').html('<p class="bsale-sync-error">' + escHtml(res.data.message) + '</p>');
+                return;
+            }
+
+            const built = buildStatusRows(res.data.products);
+            $('#bsale-status-tbody').html(built.rows);
+            $('#bsale-status-loading').hide();
+            $('#bsale-status-table-wrap').show();
+            $('#bsale-status-reload').show();
+
+            if (built.items.length) {
+                loadStatusBsaleData(built.items);
+            } else {
+                $('#bsale-status-progress').hide();
+            }
+        })
+        .fail(function () {
+            $('#bsale-status-loading').html('<p class="bsale-sync-error">Error de red al cargar productos.</p>');
+        });
+    }
+
+    function buildStatusRows(products) {
+        let rows = '';
+        const items = []; // {product_id, sku} para consultar Bsale
+
+        products.forEach(function (p) {
+            if (p.type === 'variable') {
+                rows += '<tr class="bsale-status-parent">'
+                    + '<td colspan="4"><strong>' + escHtml(p.name) + '</strong></td>'
+                    + '</tr>';
+                p.variations.forEach(function (v) {
+                    rows += buildStatusRow(v, true);
+                    if (v.sku) items.push({ product_id: v.product_id, sku: v.sku });
+                });
+            } else {
+                rows += buildStatusRow(p, false);
+                if (p.sku) items.push({ product_id: p.product_id, sku: p.sku });
+            }
+        });
+
+        return { rows: rows, items: items };
+    }
+
+    function buildStatusRow(item, isVariation) {
+        const namePrefix = isVariation ? '<span class="bsale-variation-arrow">↳</span> ' : '';
+        const rowClass   = isVariation ? 'bsale-status-variation' : 'bsale-status-simple';
+
+        if (!item.sku) {
+            const wcStockLabel = item.manage_stock ? String(item.wc_stock !== null ? item.wc_stock : 0) : '<em class="bsale-vs-na">sin gest.</em>';
+            const wcPriceLabel = item.wc_price ? formatCLP(item.wc_price) : '<em class="bsale-vs-na">—</em>';
+            return '<tr class="' + rowClass + ' bsale-no-sku">'
+                + '<td>' + namePrefix + escHtml(item.name) + '</td>'
+                + '<td><span class="bsale-no-sku-tag">sin SKU</span></td>'
+                + '<td class="bsale-vs-cell">' + wcStockLabel + ' <span class="bsale-vs-sep">/</span> <em class="bsale-vs-na">—</em></td>'
+                + '<td class="bsale-vs-cell">' + wcPriceLabel + ' <span class="bsale-vs-sep">/</span> <em class="bsale-vs-na">—</em></td>'
+                + '</tr>';
+        }
+
+        const wcStockLabel = item.manage_stock
+            ? String(item.wc_stock !== null ? item.wc_stock : 0)
+            : '<em class="bsale-vs-na">sin gest.</em>';
+        const wcPriceLabel = item.wc_price ? formatCLP(item.wc_price) : '<em class="bsale-vs-na">—</em>';
+
+        return '<tr class="' + rowClass + '" data-pid="' + item.product_id + '">'
+            + '<td>' + namePrefix + escHtml(item.name) + '</td>'
+            + '<td><code>' + escHtml(item.sku) + '</code></td>'
+            + '<td class="bsale-vs-cell"'
+            +   ' data-field="stock"'
+            +   ' data-pid="' + item.product_id + '"'
+            +   ' data-wc-stock="' + (item.wc_stock !== null ? item.wc_stock : '') + '"'
+            +   ' data-manage="' + (item.manage_stock ? '1' : '0') + '">'
+            + '<span class="bsale-wc-val">' + wcStockLabel + '</span>'
+            + ' <span class="bsale-vs-sep">/</span> '
+            + '<span class="bsale-bsale-val bsale-loading">···</span>'
+            + '</td>'
+            + '<td class="bsale-vs-cell"'
+            +   ' data-field="price"'
+            +   ' data-pid="' + item.product_id + '"'
+            +   ' data-wc-price="' + (item.wc_price || 0) + '">'
+            + '<span class="bsale-wc-val">' + wcPriceLabel + '</span>'
+            + ' <span class="bsale-vs-sep">/</span> '
+            + '<span class="bsale-bsale-val bsale-loading">···</span>'
+            + '</td>'
+            + '</tr>';
+    }
+
+    function loadStatusBsaleData(items) {
+        const batchSize = 5;
+        const total     = items.length;
+        let   processed = 0;
+        const $progress = $('#bsale-status-progress');
+        const $fill     = $progress.find('.bsale-progress-fill');
+        const $text     = $progress.find('.bsale-progress-text');
+
+        $progress.show();
+        $fill.css('width', '0%');
+
+        function processBatch(offset) {
+            if (offset >= total) {
+                $fill.css('width', '100%');
+                $text.text('Comparación completada — ' + total + ' SKUs consultados.');
+                updateStatusSummary();
+                setTimeout(function () { $progress.fadeOut(500); }, 2500);
+                return;
+            }
+
+            const batch = items.slice(offset, offset + batchSize);
+
+            $.post(bsaleAdmin.ajax_url, {
+                action: 'bsale_status_bsale_batch',
+                nonce:  bsaleAdmin.nonce,
+                items:  batch,
+            })
+            .done(function (res) {
+                if (res.success && res.data && res.data.results) {
+                    updateStatusCells(res.data.results);
+                }
+            })
+            .always(function () {
+                processed = Math.min(offset + batchSize, total);
+                $fill.css('width', Math.round(processed / total * 100) + '%');
+                $text.text('Consultando Bsale… ' + processed + ' / ' + total + ' SKUs');
+                processBatch(offset + batchSize);
+            });
+        }
+
+        processBatch(0);
+    }
+
+    function updateStatusCells(results) {
+        results.forEach(function (r) {
+            const pid = r.product_id;
+
+            // Celda stock
+            const $sc = $('[data-field="stock"][data-pid="' + pid + '"]');
+            if ($sc.length) {
+                const wcStock  = $sc.data('wc-stock');
+                const manages  = String($sc.data('manage')) === '1';
+                const $bsSpan  = $sc.find('.bsale-bsale-val');
+                const $wcSpan  = $sc.find('.bsale-wc-val');
+
+                $bsSpan.removeClass('bsale-loading');
+
+                if (!r.found || r.stock === null) {
+                    $bsSpan.addClass('bsale-vs-na').html('<em>—</em>');
+                } else {
+                    const match = manages && (parseInt(wcStock) === parseInt(r.stock));
+                    $bsSpan.addClass(match ? 'bsale-vs-match' : 'bsale-vs-diff').text(r.stock);
+                    if (manages) $wcSpan.addClass(match ? 'bsale-vs-match' : 'bsale-vs-diff');
+                }
+            }
+
+            // Celda precio
+            const $pc = $('[data-field="price"][data-pid="' + pid + '"]');
+            if ($pc.length) {
+                const wcPrice  = parseFloat($pc.data('wc-price')) || 0;
+                const $bsSpan  = $pc.find('.bsale-bsale-val');
+                const $wcSpan  = $pc.find('.bsale-wc-val');
+
+                $bsSpan.removeClass('bsale-loading');
+
+                if (!r.found || !r.in_list || r.price === null) {
+                    $bsSpan.addClass('bsale-vs-na').html('<em>—</em>');
+                } else {
+                    const bsalePrice = parseFloat(r.price);
+                    const match      = Math.abs(wcPrice - bsalePrice) < 1;
+                    $bsSpan.addClass(match ? 'bsale-vs-match' : 'bsale-vs-diff').text(formatCLP(bsalePrice));
+                    if (wcPrice > 0) $wcSpan.addClass(match ? 'bsale-vs-match' : 'bsale-vs-diff');
+                }
+            }
+        });
+    }
+
+    function updateStatusSummary() {
+        const stockOk   = $('.bsale-vs-cell[data-field="stock"] .bsale-bsale-val.bsale-vs-match').length;
+        const stockDiff = $('.bsale-vs-cell[data-field="stock"] .bsale-bsale-val.bsale-vs-diff').length;
+        const priceOk   = $('.bsale-vs-cell[data-field="price"] .bsale-bsale-val.bsale-vs-match').length;
+        const priceDiff = $('.bsale-vs-cell[data-field="price"] .bsale-bsale-val.bsale-vs-diff').length;
+        const noMatch   = $('.bsale-vs-cell[data-field="stock"] .bsale-bsale-val.bsale-vs-na').length;
+
+        let html = '<span>Stock:</span> '
+            + '<strong class="bsale-sync-ok">' + stockOk + ' ✓</strong>';
+        if (stockDiff) html += ' <strong class="bsale-sync-warn">' + stockDiff + ' ≠</strong>';
+
+        html += '&emsp;<span>Precio:</span> '
+            + '<strong class="bsale-sync-ok">' + priceOk + ' ✓</strong>';
+        if (priceDiff) html += ' <strong class="bsale-sync-warn">' + priceDiff + ' ≠</strong>';
+
+        if (noMatch) html += '&emsp;<span class="bsale-sync-err">' + noMatch + ' sin match en Bsale</span>';
+
+        $('#bsale-status-summary').html(html).show();
+    }
+
+    function formatCLP(val) {
+        if (val === null || val === undefined) return '—';
+        return '$' + Math.round(val).toLocaleString('es-CL');
+    }
+
+    // -------------------------------------------------------------------------
     // Pedido admin — botón reintentar/emitir documento Bsale
     // -------------------------------------------------------------------------
 

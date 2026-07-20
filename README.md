@@ -49,7 +49,7 @@ SKU en WooCommerce  ←→  code de la variante en Bsale
 
 ## Configuración
 
-El panel tiene 4 pestañas:
+El panel tiene 6 pestañas:
 
 ### Conexión
 Ingresa tu **Access Token** de Bsale (`Configuración → API → Access Token`) y verifica la conexión.
@@ -70,6 +70,15 @@ Campo RUT (factura)   →  ej. billing_company_rut
 
 ### Webhook
 Copia la URL generada y regístrala en **Bsale → Configuración → Webhooks** para los topics **Stock** y **Precio**.
+
+### Status
+Vista comparativa de todos los productos WooCommerce vs Bsale. Los valores WC aparecen al instante; los de Bsale se cargan progresivamente por lotes de 5 SKUs.
+
+- **Stock** — muestra `Ecom / Bsale` con verde (coinciden) o rojo (difieren)
+- **Precio** — ídem, comparando el precio regular de WC contra `variantValueWithTaxes` de la lista configurada
+- Productos variables muestran el padre como fila de encabezado con sus variaciones indentadas
+- Resumen al final: conteo de SKUs que coinciden, difieren y sin match en Bsale
+- Botón ↺ Recargar para refrescar sin salir del tab
 
 ### Sincronización (SOS)
 Botones de sincronización masiva para situaciones de emergencia o primera puesta en marcha:
@@ -113,11 +122,12 @@ bsale-sync-pro/
 ├── uninstall.php                   # Limpieza al desinstalar
 ├── includes/
 │   ├── class-bsale-api.php         # Cliente HTTP → api.bsale.io
-│   ├── class-bsale-settings.php    # Panel de configuración (4 tabs)
+│   ├── class-bsale-settings.php    # Panel de configuración (6 tabs)
 │   ├── class-bsale-documents.php   # Emisión de documentos
 │   ├── class-bsale-stock-sync.php  # Webhook REST + procesamiento async
 │   ├── class-bsale-stock-check.php # Verificación al carrito y checkout
-│   └── class-bsale-order-columns.php # Columnas en listado de pedidos
+│   ├── class-bsale-order-columns.php # Columnas en listado de pedidos
+│   └── class-bsale-bulk-sync.php   # Sincronización masiva SOS + comparativa Status
 ├── log/
 │   ├── .htaccess                   # Bloquea acceso web directo
 │   └── sales-YYYY-MM-DD.log        # Generado cuando el log de ventas está activo
@@ -138,6 +148,7 @@ bsale-sync-pro/
 - **Sin llamadas extra**: el stock se consulta directo con `GET /stocks.json?code={sku}&officeid={id}` y los detalles del documento usan `code` (SKU) en vez de `variantId` — sin pasos intermedios
 - **Sincronización masiva en lotes**: el tab Sincronización procesa 15 SKUs por lote AJAX secuencial — maneja catálogos de miles de productos sin agotar el tiempo de ejecución PHP
 - **Precios con IVA**: la sync masiva usa `variantValueWithTaxes` de Bsale (precio con IVA) para actualizar el precio regular en WooCommerce, consistente con la convención de precios chilenos
+- **Tab Status**: comparativa en tiempo real WC vs Bsale — lotes de 5 SKUs con actualización progresiva de celdas; colores inmediatos para identificar diferencias de stock y precio
 - **Solo registros activos**: los selects de configuración filtran con `state=0` (activo en la convención de Bsale)
 - **Anti-duplicado**: `salesId = order_id` en cada documento previene emisiones dobles
 - **HPOS compatible**: funciona con almacenamiento clásico y con el nuevo HPOS de WooCommerce 7.1+

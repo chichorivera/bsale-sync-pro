@@ -10,9 +10,11 @@ defined( 'ABSPATH' ) || exit;
 class Bsale_Bulk_Sync {
 
 	public function __construct() {
-		add_action( 'wp_ajax_bsale_get_sync_products', [ $this, 'ajax_get_products' ] );
-		add_action( 'wp_ajax_bsale_sync_stock_batch',  [ $this, 'ajax_sync_stock_batch' ] );
-		add_action( 'wp_ajax_bsale_sync_price_batch',  [ $this, 'ajax_sync_price_batch' ] );
+		add_action( 'wp_ajax_bsale_get_sync_products',  [ $this, 'ajax_get_products' ] );
+		add_action( 'wp_ajax_bsale_sync_stock_batch',   [ $this, 'ajax_sync_stock_batch' ] );
+		add_action( 'wp_ajax_bsale_sync_price_batch',   [ $this, 'ajax_sync_price_batch' ] );
+		add_action( 'wp_ajax_bsale_status_products',    [ $this, 'ajax_status_products' ] );
+		add_action( 'wp_ajax_bsale_status_bsale_batch', [ $this, 'ajax_status_bsale_batch' ] );
 	}
 
 	// -------------------------------------------------------------------------
@@ -201,6 +203,145 @@ class Bsale_Bulk_Sync {
 			'new'    => $price,
 			'detail' => '$' . number_format( $prev, 0, ',', '.' ) . ' → $' . number_format( $price, 0, ',', '.' ),
 		];
+	}
+
+	// -------------------------------------------------------------------------
+	// AJAX: estructura jerárquica de productos para el tab Status
+	// -------------------------------------------------------------------------
+
+	public function ajax_status_products(): void {
+		check_ajax_referer( 'bsale_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( [ 'message' => 'Sin permisos.' ] );
+		}
+
+		wp_send_json_success( [ 'products' => $this->collect_status_data() ] );
+	}
+
+	// -------------------------------------------------------------------------
+	// AJAX: stock y precio en Bsale para un lote de SKUs (tab Status)
+	// -------------------------------------------------------------------------
+
+	public function ajax_status_bsale_batch(): void {
+		check_ajax_referer( 'bsale_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( [ 'message' => 'Sin permisos.' ] );
+		}
+
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		@set_time_limit( 120 );
+
+		$settings      = get_option( BSALE_SYNC_OPTION, [] );
+		$office_id     = (int) ( $settings['office_id'] ?? 0 );
+		$price_list_id = (int) ( $settings['price_list_id'] ?? 0 );
+		$raw_items     = $_POST['items'] ?? []; // phpcs:ignore
+		$items         = is_array( $raw_items ) ? $raw_items : [];
+		$api           = new Bsale_API();
+		$results       = [];
+
+		foreach ( $items as $item ) {
+			$sku        = sanitize_text_field( $item['sku'] ?? '' );
+			$product_id = (int) ( $item['product_id'] ?? 0 );
+
+			if ( ! $sku || ! $product_id ) continue;
+
+			// Variante en Bsale (cacheada 1h — reutiliza la caché del sync de precios)
+			$variant    = $api->get_variant_by_sku( $sku );
+			$found      = ! is_wp_error( $variant ) && ! empty( $variant );
+			$variant_id = $found ? (int) $variant['id'] : null;
+
+			// Stock en Bsale (por SKU directo)
+			$stock        = null;
+			$stock_params = [ 'code' => $sku ];
+			if ( $office_id ) $stock_params['officeid'] = $office_id;
+			$stock_data = $api->get( 'stocks.json', $stock_params );
+			if ( ! is_wp_error( $stock_data ) && ! empty( $stock_data['items'] ) ) {
+				$stock = 0;
+				foreach ( $stock_data['items'] as $s ) {
+					$stock += (float) ( $s['quantityAvailable'] ?? 0 );
+				}
+				$stock = (int) round( $stock );
+			}
+
+			// Precio en lista configurada
+			$price   = null;
+			$in_list = false;
+			if ( $found && $variant_id && $price_list_id ) {
+				$detail = $api->get_price_list_detail( $price_list_id, $variant_id );
+				if ( ! is_wp_error( $detail ) && $detail ) {
+					$in_list = true;
+					$price   = (float) ( $detail['variantValueWithTaxes'] ?? 0 );
+				}
+			}
+
+			$results[] = [
+				'product_id' => $product_id,
+				'found'      => $found,
+				'stock'      => $stock,
+				'price'      => $price,
+				'in_list'    => $in_list,
+			];
+		}
+
+		wp_send_json_success( [ 'results' => $results ] );
+	}
+
+	// -------------------------------------------------------------------------
+	// Recolecta estructura jerárquica WC para el tab Status
+	// -------------------------------------------------------------------------
+
+	private function collect_status_data(): array {
+		$products = [];
+		$ids      = wc_get_products( [
+			'limit'  => -1,
+			'status' => 'publish',
+			'return' => 'ids',
+		] );
+
+		foreach ( $ids as $product_id ) {
+			$product = wc_get_product( $product_id );
+			if ( ! $product ) continue;
+
+			if ( $product->is_type( 'variable' ) ) {
+				$variations = [];
+				foreach ( $product->get_children() as $var_id ) {
+					$variation = wc_get_product( $var_id );
+					if ( ! $variation ) continue;
+					$raw_price  = $variation->get_regular_price();
+					$variations[] = [
+						'product_id'   => $var_id,
+						'name'         => $variation->get_name(),
+						'sku'          => $variation->get_sku() ?: null,
+						'wc_stock'     => $variation->get_manage_stock() ? (int) $variation->get_stock_quantity() : null,
+						'wc_price'     => $raw_price !== '' ? (float) $raw_price : null,
+						'manage_stock' => (bool) $variation->get_manage_stock(),
+					];
+				}
+				if ( ! empty( $variations ) ) {
+					$products[] = [
+						'type'       => 'variable',
+						'product_id' => $product_id,
+						'name'       => $product->get_name(),
+						'variations' => $variations,
+					];
+				}
+			} else {
+				$raw_price  = $product->get_regular_price();
+				$products[] = [
+					'type'         => 'simple',
+					'product_id'   => $product_id,
+					'name'         => $product->get_name(),
+					'sku'          => $product->get_sku() ?: null,
+					'wc_stock'     => $product->get_manage_stock() ? (int) $product->get_stock_quantity() : null,
+					'wc_price'     => $raw_price !== '' ? (float) $raw_price : null,
+					'manage_stock' => (bool) $product->get_manage_stock(),
+				];
+			}
+		}
+
+		return $products;
 	}
 
 	// -------------------------------------------------------------------------

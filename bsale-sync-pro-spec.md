@@ -47,6 +47,8 @@ Plugin WordPress/WooCommerce que integra Bsale (ERP/facturación chileno) con un
 
 ### Tabs del panel
 
+> **Tabs actuales:** Conexión · Documentos · Mapeo de campos · Webhook · Sincronización · Status
+
 #### Tab: Conexión
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -251,6 +253,51 @@ apply_filters('bsale_stock_error_message',
 
 ---
 
+## Módulo 6 — Sincronización masiva (tab "Sincronización" SOS)
+
+Accesible desde la pestaña **Sincronización** del panel. Sin formulario — todo vía AJAX.
+
+| Botón | Acción |
+|---|---|
+| Sincronizar stock | Consulta `GET /stocks.json?code={sku}&officeid={id}` por cada SKU. Actualiza `stock_quantity` en WC. Activa `manage_stock` si no estaba habilitado. |
+| Sincronizar precios | Busca variante por SKU (`get_variant_by_sku`), luego obtiene `variantValueWithTaxes` de la lista configurada. Actualiza `regular_price` en WC. |
+
+- Para productos variables: solo procesa variaciones (no el padre)
+- Procesamiento en lotes de 15 SKUs por llamado AJAX secuencial (soporta catálogos grandes)
+- No crea productos nuevos — solo actualiza los que ya tienen SKU en WC
+- Reporte final por tabla: SKU · Producto · Estado (✓ / ✗ / ⚠) · Detalle
+
+---
+
+## Módulo 7 — Status comparativo (tab "Status")
+
+Pestaña de solo lectura que muestra, por SKU, los valores actuales de WC vs Bsale.
+
+### Flujo
+1. Carga inmediata de la estructura WC (productos simples + jerárquica para variables/variaciones)
+2. Tabla se pinta con valores WC al instante; celdas Bsale en estado "cargando"
+3. Lotes de 5 SKUs consultan Bsale progresivamente:
+   - `GET /stocks.json?code={sku}&officeid={id}` → stock Bsale
+   - `get_variant_by_sku({sku})` (cacheado 1h) → variantId
+   - `GET /price_lists/{id}/details.json?variantid={id}` → precio Bsale
+4. Celdas se actualizan con colores: **verde** (coinciden) · **rojo** (difieren) · **gris** (sin match en Bsale)
+5. Barra de resumen muestra conteos: X ✓ Y ≠ Z sin match
+
+### Columnas de la tabla
+
+| Columna | Contenido |
+|---|---|
+| Producto | Nombre. Productos variables agrupan variaciones indentadas debajo |
+| SKU | Código del producto; `sin SKU` si no tiene |
+| Stock `Ecom / Bsale` | `10 / 10` (verde) o `10 / 8` (rojo) o `10 / —` (sin match) |
+| Precio `Ecom / Bsale` | `$9.990 / $9.990` (verde) o `$9.990 / $12.990` (rojo) |
+
+- Productos sin SKU aparecen en la tabla pero con `—` en ambas celdas Bsale
+- Si `manage_stock` está desactivado en WC, la celda stock muestra `sin gest.` sin comparación
+- Botón ↺ Recargar para refrescar sin navegar
+
+---
+
 ## Estructura de archivos del plugin
 
 ```
@@ -259,16 +306,18 @@ bsale-sync-pro/
 ├── uninstall.php                   # Limpia opciones y transients al desinstalar
 ├── includes/
 │   ├── class-bsale-api.php         # Cliente HTTP: todos los calls a api.bsale.io
-│   ├── class-bsale-settings.php    # Panel de configuración WooCommerce
+│   ├── class-bsale-settings.php    # Panel de configuración WooCommerce (6 tabs)
 │   ├── class-bsale-documents.php   # Emisión de boleta/factura en pedidos
 │   ├── class-bsale-stock-sync.php  # Webhook endpoint + procesamiento de stock
 │   ├── class-bsale-stock-check.php # Micro-verificaciones al carrito y checkout
-│   └── class-bsale-product-meta.php# Campo _bsale_variant_id en productos/variaciones
+│   ├── class-bsale-bulk-sync.php   # Sincronización masiva SOS + comparativa Status
+│   └── class-bsale-order-columns.php # Columnas en listado de pedidos
+├── log/
+│   ├── .htaccess                   # Bloquea acceso web directo
+│   └── sales-YYYY-MM-DD.log        # Generado cuando el log de ventas está activo
 └── assets/
-    ├── js/
-    │   └── bsale-admin.js          # Carga dinámica de selects en configuración
-    └── css/
-        └── bsale-admin.css
+    ├── js/bsale-admin.js
+    └── css/bsale-admin.css
 ```
 
 ---

@@ -324,3 +324,130 @@
     padding: 8px 12px;
     margin: 0;
 }
+
+/* ---- Tab Status — Comparativa WC vs Bsale ---- */
+
+#bsale-status-topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 32px;
+    margin-bottom: 12px;
+}
+
+.bsale-status-summary-bar {
+    flex: 1;
+    font-size: 13px;
+    padding: 6px 12px;
+    background: #f6f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+}
+
+.bsale-status-loading {
+    display: flex;
+    align-items: center;
+    padding: 20px 0;
+    color: #646970;
+    font-size: 13px;
+}
+
+.bsale-status-table-scroll {
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+}
+
+.bsale-status-table {
+    font-size: 12px;
+    margin: 0;
+    border: none;
+}
+
+.bsale-status-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f6f7f7;
+    border-bottom: 2px solid #c3c4c7 !important;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #50575e;
+    white-space: nowrap;
+}
+
+.bsale-col-vs {
+    min-width: 150px;
+}
+
+.bsale-vs-legend {
+    display: block;
+    font-weight: 400;
+    font-size: 10px;
+    color: #9ba2a9;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 1px;
+}
+
+/* Fila padre de producto variable */
+.bsale-status-parent td {
+    background: #f0f1f3 !important;
+    color: #2c3338;
+    font-size: 12px;
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+    border-top: 2px solid #d0d1d3 !important;
+}
+
+/* Fila de variación — indentada */
+.bsale-status-variation td:first-child {
+    padding-left: 28px !important;
+}
+
+.bsale-variation-arrow {
+    color: #9ba2a9;
+    margin-right: 3px;
+    font-size: 11px;
+}
+
+/* Producto sin SKU */
+.bsale-no-sku-tag {
+    font-size: 11px;
+    color: #9ba2a9;
+    font-style: italic;
+}
+
+/* Celda VS */
+.bsale-vs-cell {
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.bsale-vs-sep {
+    color: #c3c4c7;
+    margin: 0 5px;
+    font-size: 11px;
+}
+
+/* Estado cargando: puntos pulsantes */
+.bsale-loading {
+    color: #c3c4c7;
+    font-size: 13px;
+    letter-spacing: 2px;
+    animation: bsale-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes bsale-pulse {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 1; }
+}
+
+/* Estados del valor Bsale */
+.bsale-vs-match { color: #1c9e58; font-weight: 700; }
+.bsale-vs-diff  { color: #cc1818; font-weight: 700; }
+.bsale-vs-na    { color: #9ba2a9; }
